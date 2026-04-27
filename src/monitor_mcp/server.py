@@ -46,6 +46,18 @@ class ObservationManager:
             # Reset buffer only if requested or if size changed
             if config.reset_cache or self.buffer is None or self.buffer.max_size != config.max_images:
                 print("Initializing new buffer (reset_cache=True or size changed)")
+                
+                # Clear storage folder if reset_cache is True
+                if config.reset_cache and config.storage_path:
+                    storage_p = Path(config.storage_path)
+                    if storage_p.exists() and storage_p.is_dir():
+                        print(f"Clearing storage folder: {storage_p}")
+                        for file in storage_p.glob("*.jpg"):
+                            try:
+                                file.unlink()
+                            except Exception as e:
+                                print(f"Failed to delete {file}: {e}")
+
                 self.buffer = MonitorBuffer(
                     max_size=config.max_images,
                     storage_path=config.storage_path,
