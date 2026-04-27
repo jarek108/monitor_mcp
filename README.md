@@ -7,6 +7,8 @@
 ## 🚀 Quickstart
 
 ### 1. Installation
+Requires Python **>=3.10**. 
+
 Clone the repository and install the package in editable mode:
 ```bash
 git clone https://github.com/jarek108/monitor_mcp.git
@@ -31,15 +33,12 @@ If you want to test the raw MCP protocol:
 npx -y @modelcontextprotocol/inspector python -m monitor_mcp.server
 ```
 
-### 📜 Scenarios & API Design
-For a detailed breakdown of use cases, planned scenarios, and the design philosophy of the retrieval API, see the [Scenarios & API Design Page](SCENARIOS.md).
-
 ### 3. LLM Integration
-Add the server to your MCP client configuration (e.g., Claude Desktop or Windsurf):
+Add the server to your MCP client configuration (e.g., Claude Desktop, Windsurf, or Cursor):
 ```json
 {
   "mcpServers": {
-    "monitor": {
+    "monitor-mcp": {
       "command": "python",
       "args": ["-m", "monitor_mcp.server"],
       "env": {
@@ -52,6 +51,11 @@ Add the server to your MCP client configuration (e.g., Claude Desktop or Windsur
 
 ---
 
+## 📜 Scenarios & API Design
+For a detailed breakdown of real-world use cases, planned scenarios, and the design philosophy of the retrieval API, see the [Scenarios & API Design Page](SCENARIOS.md).
+
+---
+
 ## ✨ Features
 - **High-Performance Capture**: Uses `mss` for low-latency screen grabbing on Windows, macOS, and Linux.
 - **DPI Aware**: Handles high-resolution displays correctly on Windows.
@@ -59,6 +63,13 @@ Add the server to your MCP client configuration (e.g., Claude Desktop or Windsur
 - **Advanced Retrieval**: Retrieve frames using relative indices (`-1` for latest) and custom strides (e.g., every 5th frame).
 - **Optional Disk Logging**: Save frames to a directory for manual inspection.
 - **Configurable Defaults**: Manage settings via a central `config.json`.
+
+## 🏛️ Architecture: Surface vs. Backend
+
+`monitor_mcp` is designed with a dual-layer approach:
+
+1.  **The Backend (MCP Server)**: A headless Python process that talks to LLMs. It handles the "dirty work" of high-speed capture, circular buffering, and threading.
+2.  **The Surface (Streamlit Dashboard)**: A visual interface for humans. It connects to the same logic as the backend, allowing you to monitor the monitoring process, verify results, and manually adjust settings without JSON editing.
 
 ---
 
