@@ -23,3 +23,6 @@ class MonitoringStatus(BaseModel):
     config: Optional[MonitorConfig] = None
     buffer_size: int
     frames_captured: int
+    current_fps: float = 0.0
+    last_frame_size_kb: float = 0.0
+    total_buffer_size_mb: float = 0.0

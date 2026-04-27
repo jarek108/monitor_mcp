@@ -2,6 +2,9 @@ import streamlit as st
 import time
 import base64
 import io
+import os
+import tkinter as tk
+from tkinter import filedialog
 from PIL import Image
 from monitor_mcp.server import ObservationManager
 from monitor_mcp.types import MonitorConfig
@@ -9,6 +12,14 @@ from monitor_mcp.types import MonitorConfig
 @st.cache_resource
 def get_manager():
     return ObservationManager()
+
+def select_folder():
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)
+    folder_path = filedialog.askdirectory(master=root)
+    root.destroy()
+    return folder_path
 
 def show_ui():
     # Page config
@@ -19,24 +30,46 @@ def show_ui():
     )
 
     manager = get_manager()
+    defaults = manager.default_config
+
+    # Initialize session state for folder path
+    if "storage_path" not in st.session_state:
+        st.session_state.storage_path = defaults.storage_path
 
     st.title("🖥️ Monitor MCP Dashboard")
     st.markdown("---")
 
     # Sidebar for Configuration
     st.sidebar.header("Configuration")
-    defaults = manager.default_config
 
-    screen = st.sidebar.number_input("Screen Index", min_value=0, value=defaults.screen, help="0 for all, 1 for primary")
-    frequency = st.sidebar.slider("Capture Frequency (Hz)", min_value=0.1, max_value=30.0, value=defaults.frequency)
-    max_images = st.sidebar.number_input("Buffer Size (images)", min_value=1, value=defaults.max_images)
-    save_to_disk = st.sidebar.checkbox("Save to Disk", value=defaults.save_to_disk)
-    storage_path = st.sidebar.text_input("Storage Path", value=defaults.storage_path)
+    def sidebar_row(label, key, input_func, **kwargs):
+        col1, col2 = st.sidebar.columns([2, 2])
+        col1.markdown(f"<div style='padding-top: 5px;'>{label}</div>", unsafe_allow_html=True)
+        with col2:
+            return input_func(label, label_visibility="collapsed", key=key, **kwargs)
+
+    screen = sidebar_row("Screen Index", "screen", st.sidebar.number_input, min_value=0, value=defaults.screen)
+    frequency = sidebar_row("Frequency (Hz)", "freq", st.sidebar.slider, min_value=0.1, max_value=30.0, value=defaults.frequency)
+    max_images = sidebar_row("Buffer Size", "max_img", st.sidebar.number_input, min_value=1, value=defaults.max_images)
+    save_to_disk = sidebar_row("Save to Disk", "save_disk", st.sidebar.checkbox, value=defaults.save_to_disk)
+    
+    # Browsable Storage Path
+    st.sidebar.markdown("**Storage Path**")
+    col_path, col_btn = st.sidebar.columns([3, 1])
+    with col_path:
+        storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed")
+        st.session_state.storage_path = storage_path
+    with col_btn:
+        if st.button("📁"):
+            picked_path = select_folder()
+            if picked_path:
+                st.session_state.storage_path = picked_path
+                st.rerun()
 
     # Manual Resolution
-    use_res = st.sidebar.checkbox("Limit Resolution", value=defaults.max_resolution is not None)
-    res_w = st.sidebar.number_input("Width", min_value=64, value=defaults.max_resolution[0] if defaults.max_resolution else 1280)
-    res_h = st.sidebar.number_input("Height", min_value=64, value=defaults.max_resolution[1] if defaults.max_resolution else 720)
+    use_res = sidebar_row("Limit Res", "use_res", st.sidebar.checkbox, value=defaults.max_resolution is not None)
+    res_w = sidebar_row("Width", "res_w", st.sidebar.number_input, min_value=64, value=defaults.max_resolution[0] if defaults.max_resolution else 1280)
+    res_h = sidebar_row("Height", "res_h", st.sidebar.number_input, min_value=64, value=defaults.max_resolution[1] if defaults.max_resolution else 720)
 
     max_resolution = [res_w, res_h] if use_res else None
 
@@ -52,7 +85,7 @@ def show_ui():
             frequency=frequency,
             max_images=max_images,
             max_resolution=max_resolution,
-            storage_path=storage_path,
+            storage_path=st.session_state.storage_path,
             save_to_disk=save_to_disk
         )
         manager.start(config)
@@ -72,18 +105,22 @@ def show_ui():
         st.info("Monitoring Idle")
 
     # Metrics
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Buffer Size", f"{status.buffer_size} / {max_images}")
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1.metric("Buffer Count", f"{status.buffer_size} / {max_images}")
     m2.metric("Total Captured", status.frames_captured)
     
     uptime = 0
     if status.is_active and manager.buffer and manager.buffer.current_size > 0:
         uptime = int(time.time() - manager.buffer._buffer[0]['timestamp'])
     m3.metric("Uptime", f"{uptime}s")
+    
+    m4.metric("Real FPS", f"{status.current_fps}")
+    m5.metric("Last Frame", f"{status.last_frame_size_kb} KB")
+    m6.metric("Total Size", f"{status.total_buffer_size_mb} MB")
 
-    # Add a global auto-refresh for metrics/status
+    # Add a global auto-refresh for metrics/status/live-view
+    # If monitoring is active, we refresh once per second
     if status.is_active:
-        st.empty() # Placeholder for refresh
         time.sleep(1.0)
         st.rerun()
 
@@ -99,7 +136,6 @@ def show_ui():
                 frames = manager.buffer.get_frames(start=-1, count=1)
                 if frames:
                     st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
-                    # Tab specific refresh removed in favor of global refresh above
         
         with tab2:
             if manager.buffer and manager.buffer.current_size > 0:

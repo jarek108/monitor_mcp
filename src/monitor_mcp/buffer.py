@@ -21,13 +21,17 @@ class MonitorBuffer:
         """Add a frame to the buffer. frame_data is usually the raw image or PIL object."""
         with self._lock:
             index = self._total_captured
-            print(f"Adding frame {index} to buffer")
+            # Estimate raw memory size (RGB = 3 bytes per pixel)
+            size_bytes = width * height * 3
+            
+            print(f"Adding frame {index} to buffer ({width}x{height}, ~{size_bytes/1024:.1f} KB)")
             self._buffer.append({
                 "index": index,
                 "timestamp": timestamp,
                 "data": frame_data,
                 "width": width,
-                "height": height
+                "height": height,
+                "size_bytes": size_bytes
             })
             self._total_captured += 1
             

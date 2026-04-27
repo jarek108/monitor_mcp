@@ -11,7 +11,6 @@ from .buffer import MonitorBuffer
 from .types import MonitorConfig, Frame, MonitoringStatus
 
 class ObservationManager:
-    # ... (rest of the class remains the same)
     def __init__(self):
         self.engine = ScreenEngine()
         self.buffer: Optional[MonitorBuffer] = None
@@ -21,6 +20,8 @@ class ObservationManager:
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         self.default_config = self._load_default_config()
+        self._fps_frames = [] # timestamps for FPS calculation
+        self._current_fps = 0.0
 
     def _load_default_config(self) -> MonitorConfig:
         config_path = Path("config.json")
@@ -46,6 +47,94 @@ class ObservationManager:
                 storage_path=config.storage_path,
                 save_to_disk=config.save_to_disk
             )
+            self._stop_event.clear()
+            self._fps_frames = []
+            self._current_fps = 0.0
+            
+            self._thread = threading.Thread(
+                target=self._run_loop,
+                daemon=True,
+                name="ObservationLoop"
+            )
+            self._thread.start()
+
+    def stop(self):
+        with self._lock:
+            self._stop_event.set()
+            if self._thread:
+                self._thread.join(timeout=2.0)
+                self._thread = None
+            self._current_fps = 0.0
+
+    def _run_loop(self):
+        print("Starting observation loop...")
+        if not self.config or not self.buffer:
+            print("Missing config or buffer, exiting loop.")
+            return
+
+        interval = 1.0 / self.config.frequency
+        resize_tuple = tuple(self.config.max_resolution) if self.config.max_resolution else None
+        
+        while not self._stop_event.is_set():
+            loop_start = time.time()
+            
+            try:
+                img = self.engine.capture(
+                    screen_index=self.config.screen,
+                    resize=resize_tuple
+                )
+                self.buffer.add_frame(
+                    frame_data=img,
+                    timestamp=loop_start,
+                    width=img.width,
+                    height=img.height
+                )
+                
+                # Update FPS
+                now = time.time()
+                self._fps_frames.append(now)
+                # Keep only last 10 frames or frames from last 2 seconds
+                self._fps_frames = [t for t in self._fps_frames if now - t < 2.0]
+                if len(self._fps_frames) > 1:
+                    self._current_fps = len(self._fps_frames) / (self._fps_frames[-1] - self._fps_frames[0] + 0.0001)
+                else:
+                    self._current_fps = 0.0
+
+            except Exception as e:
+                print(f"Capture error: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Precise sleep to maintain frequency
+            elapsed = time.time() - loop_start
+            sleep_time = max(0, interval - elapsed)
+            time.sleep(sleep_time)
+        print("Observation loop stopped.")
+
+    def get_status(self) -> MonitoringStatus:
+        is_active = self._thread is not None and self._thread.is_alive()
+        
+        last_frame_size_kb = 0.0
+        total_buffer_size_mb = 0.0
+        
+        if self.buffer and self.buffer.current_size > 0:
+            with self.buffer._lock:
+                last_frame = self.buffer._buffer[-1]
+                last_frame_size_kb = last_frame.get("size_bytes", 0) / 1024.0
+                
+                total_bytes = sum(f.get("size_bytes", 0) for f in self.buffer._buffer)
+                total_buffer_size_mb = total_bytes / (1024.0 * 1024.0)
+
+        return MonitoringStatus(
+            is_active=is_active,
+            config=self.config,
+            buffer_size=self.buffer.current_size if self.buffer else 0,
+            frames_captured=self.buffer.total_captured if self.buffer else 0,
+            current_fps=round(self._current_fps, 1),
+            last_frame_size_kb=round(last_frame_size_kb, 1),
+            total_buffer_size_mb=round(total_buffer_size_mb, 1)
+        )
+
             self._stop_event.clear()
             
             self._thread = threading.Thread(
