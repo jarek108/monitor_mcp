@@ -135,66 +135,6 @@ class ObservationManager:
             total_buffer_size_mb=round(total_buffer_size_mb, 1)
         )
 
-            self._stop_event.clear()
-            
-            self._thread = threading.Thread(
-                target=self._run_loop,
-                daemon=True,
-                name="ObservationLoop"
-            )
-            self._thread.start()
-
-    def stop(self):
-        with self._lock:
-            self._stop_event.set()
-            if self._thread:
-                self._thread.join(timeout=2.0)
-                self._thread = None
-
-    def _run_loop(self):
-        print("Starting observation loop...")
-        if not self.config or not self.buffer:
-            print("Missing config or buffer, exiting loop.")
-            return
-
-        interval = 1.0 / self.config.frequency
-        resize_tuple = tuple(self.config.max_resolution) if self.config.max_resolution else None
-        
-        while not self._stop_event.is_set():
-            loop_start = time.time()
-            
-            try:
-                img = self.engine.capture(
-                    screen_index=self.config.screen,
-                    resize=resize_tuple
-                )
-                self.buffer.add_frame(
-                    frame_data=img,
-                    timestamp=loop_start,
-                    width=img.width,
-                    height=img.height
-                )
-                # print(f"Captured frame {self.buffer.total_captured}")
-            except Exception as e:
-                print(f"Capture error: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # Precise sleep to maintain frequency
-            elapsed = time.time() - loop_start
-            sleep_time = max(0, interval - elapsed)
-            time.sleep(sleep_time)
-        print("Observation loop stopped.")
-
-    def get_status(self) -> MonitoringStatus:
-        is_active = self._thread is not None and self._thread.is_alive()
-        return MonitoringStatus(
-            is_active=is_active,
-            config=self.config,
-            buffer_size=self.buffer.current_size if self.buffer else 0,
-            frames_captured=self.buffer.total_captured if self.buffer else 0
-        )
-
 # Initialize MCP Server
 mcp = FastMCP("monitor_mcp")
 manager = ObservationManager()
