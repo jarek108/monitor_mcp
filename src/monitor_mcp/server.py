@@ -1,6 +1,9 @@
 import threading
 import time
 import base64
+import json
+import os
+from pathlib import Path
 from typing import Optional, List, Tuple
 from mcp.server.fastmcp import FastMCP
 from .engine import ScreenEngine
@@ -16,6 +19,18 @@ class ObservationManager:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+        self.default_config = self._load_default_config()
+
+    def _load_default_config(self) -> MonitorConfig:
+        config_path = Path("config.json")
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    data = json.load(f)
+                    return MonitorConfig(**data)
+            except Exception:
+                pass
+        return MonitorConfig()
 
     def start(self, config: MonitorConfig):
         with self._lock:
@@ -23,7 +38,11 @@ class ObservationManager:
                 self.stop()
             
             self.config = config
-            self.buffer = MonitorBuffer(max_size=config.max_images)
+            self.buffer = MonitorBuffer(
+                max_size=config.max_images,
+                storage_path=config.storage_path,
+                save_to_disk=config.save_to_disk
+            )
             self._stop_event.clear()
             
             self._thread = threading.Thread(
@@ -85,10 +104,12 @@ manager = ObservationManager()
 
 @mcp.tool()
 def start_monitoring(
-    screen: int = 0,
-    frequency: float = 2.0,
-    max_images: int = 3600,
-    max_resolution: Optional[List[int]] = None
+    screen: Optional[int] = None,
+    frequency: Optional[float] = None,
+    max_images: Optional[int] = None,
+    max_resolution: Optional[List[int]] = None,
+    storage_path: Optional[str] = None,
+    save_to_disk: Optional[bool] = None
 ) -> str:
     """
     Start monitoring the screen.
@@ -96,12 +117,19 @@ def start_monitoring(
     :param frequency: Captures per second
     :param max_images: Max images in circular buffer
     :param max_resolution: Optional [width, height] constraint
+    :param storage_path: Folder to save images to
+    :param save_to_disk: Whether to save every frame to disk
     """
+    # Use defaults from config.json if not provided
+    defaults = manager.default_config
+    
     config = MonitorConfig(
-        screen=screen,
-        frequency=frequency,
-        max_images=max_images,
-        max_resolution=max_resolution
+        screen=screen if screen is not None else defaults.screen,
+        frequency=frequency if frequency is not None else defaults.frequency,
+        max_images=max_images if max_images is not None else defaults.max_images,
+        max_resolution=max_resolution if max_resolution is not None else defaults.max_resolution,
+        storage_path=storage_path if storage_path is not None else defaults.storage_path,
+        save_to_disk=save_to_disk if save_to_disk is not None else defaults.save_to_disk
     )
     manager.start(config)
     return f"Monitoring started: {config}"

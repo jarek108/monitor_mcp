@@ -1,0 +1,8 @@
+{
+    "screen": 0,
+    "frequency": 2.0,
+    "max_images": 3600,
+    "max_resolution": null,
+    "storage_path": "screenshots",
+    "save_to_disk": false
+}

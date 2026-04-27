@@ -1,28 +1,44 @@
 from collections import deque
 import threading
+import os
+from pathlib import Path
 from typing import List, Optional, Any
 from .types import Frame
 
 class MonitorBuffer:
-    def __init__(self, max_size: int):
+    def __init__(self, max_size: int, storage_path: Optional[str] = None, save_to_disk: bool = False):
         self.max_size = max_size
+        self.storage_path = Path(storage_path) if storage_path else None
+        self.save_to_disk = save_to_disk
         self._buffer = deque(maxlen=max_size)
         self._lock = threading.Lock()
         self._total_captured = 0
+        
+        if self.save_to_disk and self.storage_path:
+            self.storage_path.mkdir(parents=True, exist_ok=True)
 
     def add_frame(self, frame_data: Any, timestamp: float, width: int, height: int):
         """Add a frame to the buffer. frame_data is usually the raw image or PIL object."""
         with self._lock:
-            # We store the raw data/object and metadata. 
-            # Encoding happens only when requested by the LLM.
+            index = self._total_captured
             self._buffer.append({
-                "index": self._total_captured,
+                "index": index,
                 "timestamp": timestamp,
                 "data": frame_data,
                 "width": width,
                 "height": height
             })
             self._total_captured += 1
+            
+            if self.save_to_disk and self.storage_path:
+                # Save as JPEG for easy manual viewing
+                try:
+                    filename = f"frame_{index:06d}_{int(timestamp)}.jpg"
+                    filepath = self.storage_path / filename
+                    # frame_data is a PIL image
+                    frame_data.save(filepath, "JPEG", quality=85)
+                except Exception:
+                    pass
 
     def get_frames(self, start: int = -1, count: int = 1, interval: int = 1) -> List[dict]:
         """
