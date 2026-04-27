@@ -13,6 +13,27 @@ from monitor_mcp.types import MonitorConfig
 def get_manager():
     return ObservationManager()
 
+@st.dialog("Query Results")
+def show_query_results(manager, start, count, interval):
+    if not manager.buffer or manager.buffer.current_size == 0:
+        st.warning("Buffer is empty.")
+        return
+
+    history_frames = manager.buffer.get_frames(start=start, count=count, interval=interval)
+    
+    if history_frames:
+        st.write(f"Retrieved {len(history_frames)} frames")
+        # Grid layout for popup
+        cols = st.columns(3)
+        for i, frame in enumerate(history_frames):
+            cols[i % 3].image(
+                frame["data"], 
+                caption=f"Idx: {frame['index']} ({frame.get('size_bytes', 0)//1024}KB)", 
+                width="stretch"
+            )
+    else:
+        st.warning("No frames found for the given criteria.")
+
 def select_folder():
     root = tk.Tk()
     root.withdraw()
@@ -60,6 +81,7 @@ def show_ui():
     max_images = st.sidebar.number_input("Buffer Size", min_value=1, value=defaults.max_images)
     save_to_disk = st.sidebar.checkbox("Save to Disk", value=defaults.save_to_disk)
     reset_cache = st.sidebar.checkbox("Reset Cache on Start", value=defaults.reset_cache)
+    draw_mouse = st.sidebar.checkbox("Draw Mouse Cursor", value=defaults.draw_mouse)
     
     # Storage Path Row (Accepted/Leave it as requested)
     def storage_row():
@@ -68,7 +90,7 @@ def show_ui():
         with col1:
             st.session_state.storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed", key="path_input")
         with col2:
-            if st.button("📁", use_container_width=True, key="path_btn"):
+            if st.button("📁", width="stretch", key="path_btn"):
                 picked_path = select_folder()
                 if picked_path:
                     st.session_state.storage_path = picked_path
@@ -107,6 +129,15 @@ def show_ui():
         manager.stop()
         st.rerun()
 
+    st.sidebar.markdown("---")
+    st.sidebar.header("Manual Query")
+    q_start = st.sidebar.number_input("Start Index (-1 for latest)", value=-1)
+    q_count = st.sidebar.number_input("Count", min_value=1, value=12)
+    q_interval = st.sidebar.number_input("Interval (Stride)", value=-1)
+    
+    if st.sidebar.button("🔍 Fetch Frames", width="stretch"):
+        show_query_results(manager, q_start, q_count, q_interval)
+
     # Main Area
     status = manager.get_status()
 
@@ -141,7 +172,7 @@ def show_ui():
 
     # Live View & History
     if status.is_active or status.buffer_size > 0:
-        tab1, tab2 = st.tabs(["📺 Live View", "🕒 History & Query"])
+        tab1, tab2 = st.tabs(["📺 Live View", "🕒 Recent History"])
         
         with tab1:
             # We'll show the last captured image
@@ -151,27 +182,18 @@ def show_ui():
                     st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
         
         with tab2:
-            st.subheader("Query History")
-            q_col1, q_col2, q_col3 = st.columns(3)
-            q_start = q_col1.number_input("Start Index (-1 for latest)", value=-1)
-            q_count = q_col2.number_input("Count", min_value=1, value=12)
-            q_interval = q_col3.number_input("Interval (Stride)", value=-1)
-            
             if manager.buffer and manager.buffer.current_size > 0:
-                # Use the same logic as the tool
-                history_frames = manager.buffer.get_frames(start=q_start, count=q_count, interval=q_interval)
-                
+                st.subheader("Recent Captures")
+                # Fixed view of last 12 frames for convenience
+                history_frames = manager.buffer.get_frames(start=-1, count=12, interval=-1)
                 if history_frames:
-                    st.write(f"Retrieved {len(history_frames)} frames")
                     cols = st.columns(4)
                     for i, frame in enumerate(history_frames):
                         cols[i % 4].image(
                             frame["data"], 
-                            caption=f"Idx: {frame['index']} ({frame.get('size_bytes', 0)//1024}KB)", 
+                            caption=f"Idx: {frame['index']}", 
                             width="stretch"
                         )
-                else:
-                    st.warning("No frames found for the given criteria.")
 
     # Move auto-refresh to the VERY END so components actually render
     if status.is_active:
