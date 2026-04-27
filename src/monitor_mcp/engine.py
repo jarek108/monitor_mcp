@@ -8,8 +8,13 @@ from typing import List, Dict, Any, Optional, Tuple
 
 class ScreenEngine:
     def __init__(self):
-        self._sct = mss.mss()
+        self._sct = None
         self._setup_dpi_awareness()
+
+    def _ensure_sct(self):
+        if self._sct is None:
+            self._sct = mss.mss()
+        return self._sct
 
     def _setup_dpi_awareness(self):
         """Set DPI awareness for accurate capture on Windows."""
@@ -25,8 +30,9 @@ class ScreenEngine:
 
     def list_monitors(self) -> List[Dict[str, Any]]:
         """List all available monitors."""
+        sct = self._ensure_sct()
         monitors = []
-        for i, mon in enumerate(self._sct.monitors):
+        for i, mon in enumerate(sct.monitors):
             monitors.append({
                 "index": i,
                 "left": mon["left"],
@@ -39,10 +45,11 @@ class ScreenEngine:
 
     def capture(self, screen_index: int = 0, resize: Optional[Tuple[int, int]] = None) -> Image.Image:
         """Capture a specific monitor and optionally resize it."""
-        if screen_index >= len(self._sct.monitors):
+        sct = self._ensure_sct()
+        if screen_index >= len(sct.monitors):
             screen_index = 0
             
-        sct_img = self._sct.grab(self._sct.monitors[screen_index])
+        sct_img = sct.grab(sct.monitors[screen_index])
         img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
         
         if resize:

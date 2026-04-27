@@ -21,6 +21,7 @@ class MonitorBuffer:
         """Add a frame to the buffer. frame_data is usually the raw image or PIL object."""
         with self._lock:
             index = self._total_captured
+            print(f"Adding frame {index} to buffer")
             self._buffer.append({
                 "index": index,
                 "timestamp": timestamp,

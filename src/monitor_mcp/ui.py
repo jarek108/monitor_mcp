@@ -6,6 +6,10 @@ from PIL import Image
 from monitor_mcp.server import ObservationManager
 from monitor_mcp.types import MonitorConfig
 
+@st.cache_resource
+def get_manager():
+    return ObservationManager()
+
 def show_ui():
     # Page config
     st.set_page_config(
@@ -14,11 +18,7 @@ def show_ui():
         layout="wide"
     )
 
-    # Initialize ObservationManager in session state
-    if "manager" not in st.session_state:
-        st.session_state.manager = ObservationManager()
-
-    manager = st.session_state.manager
+    manager = get_manager()
 
     st.title("🖥️ Monitor MCP Dashboard")
     st.markdown("---")
@@ -125,7 +125,3 @@ def main():
 
 if __name__ == "__main__":
     show_ui()
-
-if __name__ == "__main__":
-    # If run directly by streamlit
-    pass

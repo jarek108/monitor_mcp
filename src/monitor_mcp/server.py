@@ -11,6 +11,7 @@ from .buffer import MonitorBuffer
 from .types import MonitorConfig, Frame, MonitoringStatus
 
 class ObservationManager:
+    # ... (rest of the class remains the same)
     def __init__(self):
         self.engine = ScreenEngine()
         self.buffer: Optional[MonitorBuffer] = None
@@ -34,7 +35,9 @@ class ObservationManager:
 
     def start(self, config: MonitorConfig):
         with self._lock:
+            print(f"Starting monitoring with config: {config}")
             if self._thread and self._thread.is_alive():
+                print("Stopping existing thread...")
                 self.stop()
             
             self.config = config
@@ -60,7 +63,9 @@ class ObservationManager:
                 self._thread = None
 
     def _run_loop(self):
+        print("Starting observation loop...")
         if not self.config or not self.buffer:
+            print("Missing config or buffer, exiting loop.")
             return
 
         interval = 1.0 / self.config.frequency
@@ -80,14 +85,17 @@ class ObservationManager:
                     width=img.width,
                     height=img.height
                 )
+                # print(f"Captured frame {self.buffer.total_captured}")
             except Exception as e:
-                # In a real app, we'd log this properly
-                pass
+                print(f"Capture error: {e}")
+                import traceback
+                traceback.print_exc()
             
             # Precise sleep to maintain frequency
             elapsed = time.time() - loop_start
             sleep_time = max(0, interval - elapsed)
             time.sleep(sleep_time)
+        print("Observation loop stopped.")
 
     def get_status(self) -> MonitoringStatus:
         is_active = self._thread is not None and self._thread.is_alive()
