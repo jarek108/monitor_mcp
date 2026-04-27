@@ -46,7 +46,7 @@ def show_ui():
     col1, col2 = st.sidebar.columns(2)
     status = manager.get_status()
 
-    if col1.button("🚀 Start", disabled=status.is_active, use_container_width=True):
+    if col1.button("🚀 Start", disabled=status.is_active, width="stretch"):
         config = MonitorConfig(
             screen=screen,
             frequency=frequency,
@@ -58,7 +58,7 @@ def show_ui():
         manager.start(config)
         st.rerun()
 
-    if col2.button("🛑 Stop", disabled=not status.is_active, use_container_width=True):
+    if col2.button("🛑 Stop", disabled=not status.is_active, width="stretch"):
         manager.stop()
         st.rerun()
 
@@ -89,14 +89,14 @@ def show_ui():
         
         with tab1:
             # We'll show the last captured image
-            if manager.buffer and manager.buffer.current_size > 0:
-                frames = manager.buffer.get_frames(start=-1, count=1)
-                if frames:
-                    st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", use_container_width=True)
-                    # Auto-refresh logic for Streamlit
-                    if status.is_active:
-                        time.sleep(1.0 / frequency)
-                        st.rerun()
+        if manager.buffer and manager.buffer.current_size > 0:
+            frames = manager.buffer.get_frames(start=-1, count=1)
+            if frames:
+                st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
+                # Auto-refresh logic for Streamlit
+                if status.is_active:
+                    time.sleep(1.0 / frequency)
+                    st.rerun()
         
         with tab2:
             if manager.buffer and manager.buffer.current_size > 0:
@@ -106,7 +106,8 @@ def show_ui():
                 if history_frames:
                     cols = st.columns(4)
                     for i, frame in enumerate(history_frames):
-                        cols[i % 4].image(frame["data"], caption=f"Index: {frame['index']}", use_container_width=True)
+                        cols[i % 4].image(frame["data"], caption=f"Index: {frame['index']}", width="stretch")
+
 
 def main():
     import sys
