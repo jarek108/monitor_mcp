@@ -17,21 +17,21 @@ class MonitorBuffer:
         if self.save_to_disk and self.storage_path:
             self.storage_path.mkdir(parents=True, exist_ok=True)
 
-    def add_frame(self, frame_data: Any, timestamp: float, width: int, height: int):
+    def add_frame(self, frame_data: Any, timestamp: float, width: int, height: int, size_bytes: Optional[int] = None):
         """Add a frame to the buffer. frame_data is usually the raw image or PIL object."""
         with self._lock:
             index = self._total_captured
-            # Estimate raw memory size (RGB = 3 bytes per pixel)
-            size_bytes = width * height * 3
+            # Use provided size or fall back to raw estimation
+            actual_size = size_bytes if size_bytes is not None else (width * height * 3)
             
-            print(f"Adding frame {index} to buffer ({width}x{height}, ~{size_bytes/1024:.1f} KB)")
+            print(f"Adding frame {index} to buffer ({width}x{height}, ~{actual_size/1024:.1f} KB)")
             self._buffer.append({
                 "index": index,
                 "timestamp": timestamp,
                 "data": frame_data,
                 "width": width,
                 "height": height,
-                "size_bytes": size_bytes
+                "size_bytes": actual_size
             })
             self._total_captured += 1
             

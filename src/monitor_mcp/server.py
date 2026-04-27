@@ -93,11 +93,17 @@ class ObservationManager:
                     screen_index=self.config.screen,
                     resize=resize_tuple
                 )
+                
+                # Encode once to get actual compressed size for reporting
+                img_bytes = self.engine.encode_image(img)
+                actual_size = len(img_bytes)
+
                 self.buffer.add_frame(
                     frame_data=img,
                     timestamp=loop_start,
                     width=img.width,
-                    height=img.height
+                    height=img.height,
+                    size_bytes=actual_size
                 )
                 
                 # Update FPS

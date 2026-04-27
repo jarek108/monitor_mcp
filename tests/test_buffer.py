@@ -3,20 +3,21 @@ from monitor_mcp.buffer import MonitorBuffer
 
 def test_buffer_basic_add():
     buf = MonitorBuffer(max_size=10)
-    buf.add_frame("data1", 100.0, 100, 100)
+    buf.add_frame("data1", 100.0, 100, 100, size_bytes=1024)
     assert buf.current_size == 1
     assert buf.total_captured == 1
     
     frames = buf.get_frames(start=-1, count=1)
     assert len(frames) == 1
     assert frames[0]["data"] == "data1"
+    assert frames[0]["size_bytes"] == 1024
 
 def test_buffer_circular_wrap():
     buf = MonitorBuffer(max_size=3)
-    buf.add_frame("1", 1.0, 10, 10)
-    buf.add_frame("2", 2.0, 10, 10)
-    buf.add_frame("3", 3.0, 10, 10)
-    buf.add_frame("4", 4.0, 10, 10) # 1 should be gone
+    buf.add_frame("1", 1.0, 10, 10, size_bytes=100)
+    buf.add_frame("2", 2.0, 10, 10, size_bytes=100)
+    buf.add_frame("3", 3.0, 10, 10, size_bytes=100)
+    buf.add_frame("4", 4.0, 10, 10, size_bytes=100) # 1 should be gone
     
     assert buf.current_size == 3
     assert buf.total_captured == 4
@@ -29,7 +30,7 @@ def test_buffer_circular_wrap():
 def test_buffer_complex_indexing():
     buf = MonitorBuffer(max_size=100)
     for i in range(20):
-        buf.add_frame(str(i), float(i), 10, 10)
+        buf.add_frame(str(i), float(i), 10, 10, size_bytes=10)
     
     # LLM case: get 10 images, from the last one (-1), jumping backwards every 4 images
     # get_imgs(start = -1, count = 10, interval = -4)
