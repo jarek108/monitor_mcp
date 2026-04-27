@@ -81,6 +81,12 @@ def show_ui():
         uptime = int(time.time() - manager.buffer._buffer[0]['timestamp'])
     m3.metric("Uptime", f"{uptime}s")
 
+    # Add a global auto-refresh for metrics/status
+    if status.is_active:
+        st.empty() # Placeholder for refresh
+        time.sleep(1.0)
+        st.rerun()
+
     st.markdown("---")
 
     # Live View & History
@@ -93,10 +99,7 @@ def show_ui():
                 frames = manager.buffer.get_frames(start=-1, count=1)
                 if frames:
                     st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
-                    # Auto-refresh logic for Streamlit
-                    if status.is_active:
-                        time.sleep(1.0 / frequency)
-                        st.rerun()
+                    # Tab specific refresh removed in favor of global refresh above
         
         with tab2:
             if manager.buffer and manager.buffer.current_size > 0:

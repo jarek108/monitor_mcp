@@ -8,7 +8,7 @@ class MonitorConfig(BaseModel):
     max_images: int = Field(3600, description="Maximum number of images to store in the circular buffer")
     max_resolution: Optional[List[int]] = Field(None, description="Max width and height for images (e.g. [1280, 720])")
     storage_path: str = Field("screenshots", description="Folder to save images to if save_to_disk is true")
-    save_to_disk: bool = Field(False, description="Whether to save every captured frame to the storage_path")
+    save_to_disk: bool = Field(True, description="Whether to save every captured frame to the storage_path")
 
 class Frame(BaseModel):
     index: int
