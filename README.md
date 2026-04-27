@@ -40,6 +40,28 @@ npx -y @modelcontextprotocol/inspector python -m monitor_mcp.server
 ```
 
 ### 3. LLM Integration
+#### Global Integration (OpenCode)
+To make these tools available globally to your OpenCode agent, add the following to your `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "mcp": {
+    "monitor-mcp": {
+      "type": "local",
+      "command": [
+        "python",
+        "-m",
+        "monitor_mcp.server"
+      ],
+      "environment": {
+        "PYTHONPATH": "E:/projects_large/monitor_mcp/src"
+      }
+    }
+  }
+}
+```
+
+#### Manual Project Config
 Add the server to your MCP client configuration (e.g., Claude Desktop, Windsurf, or Cursor):
 ```json
 {
