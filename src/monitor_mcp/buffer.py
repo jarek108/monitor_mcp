@@ -2,6 +2,7 @@ from collections import deque
 import threading
 import os
 from pathlib import Path
+from datetime import datetime
 from typing import List, Optional, Any
 from .types import Frame
 
@@ -38,7 +39,11 @@ class MonitorBuffer:
             if self.save_to_disk and self.storage_path:
                 # Save as JPEG for easy manual viewing
                 try:
-                    filename = f"frame_{index:06d}_{int(timestamp)}.jpg"
+                    dt = datetime.fromtimestamp(timestamp)
+                    # Format: yy_mm_dd_HH_MM_SS_mmmm (4 digits of milliseconds/fractional)
+                    dt_str = dt.strftime("%y_%m_%d_%H_%M_%S")
+                    ms_str = dt.strftime("%f")[:4]
+                    filename = f"frame_{dt_str}_{ms_str}_{index:06d}.jpg"
                     filepath = self.storage_path / filename
                     # frame_data is a PIL image
                     frame_data.save(filepath, "JPEG", quality=85)
