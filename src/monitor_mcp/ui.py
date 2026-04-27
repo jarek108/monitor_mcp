@@ -43,8 +43,9 @@ def show_ui():
     st.sidebar.header("Configuration")
 
     def sidebar_row(label, key, input_func, **kwargs):
-        col1, col2 = st.sidebar.columns([2, 2])
-        col1.markdown(f"<div style='padding-top: 5px;'>{label}</div>", unsafe_allow_html=True)
+        col1, col2 = st.sidebar.columns([1, 1])
+        with col1:
+            st.markdown(f"<div style='padding-top: 10px; font-weight: 500;'>{label}</div>", unsafe_allow_html=True)
         with col2:
             return input_func(label, label_visibility="collapsed", key=key, **kwargs)
 
@@ -53,14 +54,14 @@ def show_ui():
     max_images = sidebar_row("Buffer Size", "max_img", st.sidebar.number_input, min_value=1, value=defaults.max_images)
     save_to_disk = sidebar_row("Save to Disk", "save_disk", st.sidebar.checkbox, value=defaults.save_to_disk)
     
-    # Browsable Storage Path
+    # Storage Path Row
     st.sidebar.markdown("**Storage Path**")
-    col_path, col_btn = st.sidebar.columns([3, 1])
-    with col_path:
+    p_col1, p_col2 = st.sidebar.columns([3, 1])
+    with p_col1:
         storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed")
         st.session_state.storage_path = storage_path
-    with col_btn:
-        if st.button("📁"):
+    with p_col2:
+        if st.button("📁", use_container_width=True):
             picked_path = select_folder()
             if picked_path:
                 st.session_state.storage_path = picked_path
@@ -128,7 +129,7 @@ def show_ui():
 
     # Live View & History
     if status.is_active or status.buffer_size > 0:
-        tab1, tab2 = st.tabs(["📺 Live View", "🕒 History Gallery"])
+        tab1, tab2 = st.tabs(["📺 Live View", "🕒 History & Query"])
         
         with tab1:
             # We'll show the last captured image
@@ -138,14 +139,27 @@ def show_ui():
                     st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
         
         with tab2:
+            st.subheader("Query History")
+            q_col1, q_col2, q_col3 = st.columns(3)
+            q_start = q_col1.number_input("Start Index (-1 for latest)", value=-1)
+            q_count = q_col2.number_input("Count", min_value=1, value=12)
+            q_interval = q_col3.number_input("Interval (Stride)", value=-1)
+            
             if manager.buffer and manager.buffer.current_size > 0:
-                st.subheader("Recent Frames")
-                # Get last 12 frames
-                history_frames = manager.buffer.get_frames(start=-1, count=12, interval=-1)
+                # Use the same logic as the tool
+                history_frames = manager.buffer.get_frames(start=q_start, count=q_count, interval=q_interval)
+                
                 if history_frames:
+                    st.write(f"Retrieved {len(history_frames)} frames")
                     cols = st.columns(4)
                     for i, frame in enumerate(history_frames):
-                        cols[i % 4].image(frame["data"], caption=f"Index: {frame['index']}", width="stretch")
+                        cols[i % 4].image(
+                            frame["data"], 
+                            caption=f"Idx: {frame['index']} ({frame.get('size_bytes', 0)//1024}KB)", 
+                            width="stretch"
+                        )
+                else:
+                    st.warning("No frames found for the given criteria.")
 
 
 def main():
