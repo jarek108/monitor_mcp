@@ -14,15 +14,22 @@ cd monitor_mcp
 pip install -e .
 ```
 
-### 2. Manual Testing (MCP Inspector)
-The easiest way to test the server manually is using the MCP Inspector:
+### 2. Manual Testing (Dashboard)
+The project includes a built-in dashboard for easy manual control:
+```bash
+monitor-mcp-ui
+```
+This will open a browser window where you can:
+- Configure screen, frequency, and resolution.
+- Start/Stop monitoring with one click.
+- See a **live preview** of the capture.
+- Browse the history gallery of recently captured frames.
+
+### 3. Alternative Testing (MCP Inspector)
+If you want to test the raw MCP protocol:
 ```bash
 npx -y @modelcontextprotocol/inspector python -m monitor_mcp.server
 ```
-1. Open the provided URL in your browser.
-2. Use **`start_monitoring`** to begin capturing.
-3. Use **`get_imgs`** with `start: -1` to see the latest frame.
-4. Use **`stop_monitoring`** when finished.
 
 ### 📜 Scenarios & API Design
 For a detailed breakdown of use cases, planned scenarios, and the design philosophy of the retrieval API, see the [Scenarios & API Design Page](SCENARIOS.md).
