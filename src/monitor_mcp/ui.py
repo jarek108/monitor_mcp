@@ -59,6 +59,7 @@ def show_ui():
     frequency = st.sidebar.slider("Frequency (Hz)", min_value=0.1, max_value=30.0, value=defaults.frequency)
     max_images = st.sidebar.number_input("Buffer Size", min_value=1, value=defaults.max_images)
     save_to_disk = st.sidebar.checkbox("Save to Disk", value=defaults.save_to_disk)
+    reset_cache = st.sidebar.checkbox("Reset Cache on Start", value=defaults.reset_cache)
     
     # Storage Path Row (Accepted/Leave it as requested)
     def storage_row():
@@ -96,7 +97,8 @@ def show_ui():
             max_images=max_images,
             max_resolution=max_resolution,
             storage_path=st.session_state.storage_path,
-            save_to_disk=save_to_disk
+            save_to_disk=save_to_disk,
+            reset_cache=reset_cache
         )
         manager.start(config)
         st.rerun()

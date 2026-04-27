@@ -100,7 +100,7 @@ A `config.json` file in the root directory manages global defaults:
 
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
-| `start_monitoring` | `screen`, `frequency`, `max_images`, `max_res`, `save_to_disk` | Begins background observation. Overrides `config.json`. |
+| `start_monitoring` | `screen`, `frequency`, `max_images`, `max_res`, `save_to_disk`, `reset_cache` | Begins background observation. Overrides `config.json`. |
 | `stop_monitoring` | *None* | Stops the capture thread and clears the session. |
 | `get_imgs` | `start` (idx), `count`, `interval` | Returns a list of Base64 encoded frames. |
 | `get_monitoring_status` | *None* | Returns active state, buffer size, and total frames captured. |

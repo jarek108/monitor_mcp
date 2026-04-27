@@ -42,11 +42,21 @@ class ObservationManager:
                 self.stop()
             
             self.config = config
-            self.buffer = MonitorBuffer(
-                max_size=config.max_images,
-                storage_path=config.storage_path,
-                save_to_disk=config.save_to_disk
-            )
+            
+            # Reset buffer only if requested or if size changed
+            if config.reset_cache or self.buffer is None or self.buffer.max_size != config.max_images:
+                print("Initializing new buffer (reset_cache=True or size changed)")
+                self.buffer = MonitorBuffer(
+                    max_size=config.max_images,
+                    storage_path=config.storage_path,
+                    save_to_disk=config.save_to_disk
+                )
+            else:
+                print("Reusing existing buffer (reset_cache=False)")
+                # Optionally update storage settings on existing buffer
+                self.buffer.storage_path = Path(config.storage_path) if config.storage_path else None
+                self.buffer.save_to_disk = config.save_to_disk
+
             self._stop_event.clear()
             self._fps_frames = []
             self._current_fps = 0.0
@@ -146,7 +156,8 @@ def start_monitoring(
     max_images: Optional[int] = None,
     max_resolution: Optional[List[int]] = None,
     storage_path: Optional[str] = None,
-    save_to_disk: Optional[bool] = None
+    save_to_disk: Optional[bool] = None,
+    reset_cache: Optional[bool] = None
 ) -> str:
     """
     Start monitoring the screen.
@@ -156,6 +167,7 @@ def start_monitoring(
     :param max_resolution: Optional [width, height] constraint
     :param storage_path: Folder to save images to
     :param save_to_disk: Whether to save every frame to disk
+    :param reset_cache: Whether to clear the buffer on start
     """
     # Use defaults from config.json if not provided
     defaults = manager.default_config
@@ -166,7 +178,8 @@ def start_monitoring(
         max_images=max_images if max_images is not None else defaults.max_images,
         max_resolution=max_resolution if max_resolution is not None else defaults.max_resolution,
         storage_path=storage_path if storage_path is not None else defaults.storage_path,
-        save_to_disk=save_to_disk if save_to_disk is not None else defaults.save_to_disk
+        save_to_disk=save_to_disk if save_to_disk is not None else defaults.save_to_disk,
+        reset_cache=reset_cache if reset_cache is not None else defaults.reset_cache
     )
     manager.start(config)
     return f"Monitoring started: {config}"

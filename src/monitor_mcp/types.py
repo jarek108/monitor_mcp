@@ -9,6 +9,7 @@ class MonitorConfig(BaseModel):
     max_resolution: Optional[List[int]] = Field(None, description="Max width and height for images (e.g. [1280, 720])")
     storage_path: str = Field("screenshots", description="Folder to save images to if save_to_disk is true")
     save_to_disk: bool = Field(True, description="Whether to save every captured frame to the storage_path")
+    reset_cache: bool = Field(True, description="Whether to clear the circular buffer when monitoring starts")
 
 class Frame(BaseModel):
     index: int
