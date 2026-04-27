@@ -26,7 +26,29 @@ def show_ui():
     st.set_page_config(
         page_title="Monitor MCP Dashboard",
         page_icon="🖥️",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+
+    # Force sidebar to be wider and prevent columns from stacking
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] {
+            min-width: 400px;
+            max-width: 400px;
+        }
+        [data-testid="column"] {
+            min-width: 0px !important;
+        }
+        /* Prevent columns in sidebar from stacking */
+        [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            gap: 0.5rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
     )
 
     manager = get_manager()
@@ -43,9 +65,9 @@ def show_ui():
     st.sidebar.header("Configuration")
 
     def sidebar_row(label, key, input_func, **kwargs):
-        col1, col2 = st.sidebar.columns([1, 1])
+        col1, col2 = st.sidebar.columns([2, 3])
         with col1:
-            st.markdown(f"<div style='padding-top: 10px; font-weight: 500;'>{label}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='padding-top: 10px; font-weight: 500; font-size: 0.9rem;'>{label}</div>", unsafe_allow_html=True)
         with col2:
             return input_func(label, label_visibility="collapsed", key=key, **kwargs)
 
@@ -56,13 +78,13 @@ def show_ui():
     
     # Storage Path Row
     def storage_row():
-        col1, col2, col3 = st.sidebar.columns([1, 2, 1])
+        col1, col2, col3 = st.sidebar.columns([2, 5, 1])
         with col1:
-            st.markdown("<div style='padding-top: 10px; font-weight: 500;'>Storage</div>", unsafe_allow_html=True)
+            st.markdown("<div style='padding-top: 10px; font-weight: 500; font-size: 0.9rem;'>Storage</div>", unsafe_allow_html=True)
         with col2:
             st.session_state.storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed", key="path_input")
         with col3:
-            if st.button("📁", use_container_width=True, key="path_btn"):
+            if st.button("📁", use_container_width=False, key="path_btn"):
                 picked_path = select_folder()
                 if picked_path:
                     st.session_state.storage_path = picked_path
