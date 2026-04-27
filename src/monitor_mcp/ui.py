@@ -30,27 +30,6 @@ def show_ui():
         initial_sidebar_state="expanded"
     )
 
-    # Force sidebar to be wider and prevent columns from stacking
-    st.markdown(
-        """
-        <style>
-        [data-testid="stSidebar"] {
-            min-width: 400px;
-            max-width: 400px;
-        }
-        [data-testid="column"] {
-            min-width: 0px !important;
-        }
-        /* Prevent columns in sidebar from stacking */
-        [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important;
-            gap: 0.5rem !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
     manager = get_manager()
     defaults = manager.default_config
 
@@ -64,27 +43,19 @@ def show_ui():
     # Sidebar for Configuration
     st.sidebar.header("Configuration")
 
-    def sidebar_row(label, key, input_func, **kwargs):
-        col1, col2 = st.sidebar.columns([2, 3])
-        with col1:
-            st.markdown(f"<div style='padding-top: 10px; font-weight: 500; font-size: 0.9rem;'>{label}</div>", unsafe_allow_html=True)
-        with col2:
-            return input_func(label, label_visibility="collapsed", key=key, **kwargs)
-
-    screen = sidebar_row("Screen Index", "screen", st.sidebar.number_input, min_value=0, value=defaults.screen)
-    frequency = sidebar_row("Frequency (Hz)", "freq", st.sidebar.slider, min_value=0.1, max_value=30.0, value=defaults.frequency)
-    max_images = sidebar_row("Buffer Size", "max_img", st.sidebar.number_input, min_value=1, value=defaults.max_images)
-    save_to_disk = sidebar_row("Save to Disk", "save_disk", st.sidebar.checkbox, value=defaults.save_to_disk)
+    screen = st.sidebar.number_input("Screen Index", min_value=0, value=defaults.screen)
+    frequency = st.sidebar.slider("Frequency (Hz)", min_value=0.1, max_value=30.0, value=defaults.frequency)
+    max_images = st.sidebar.number_input("Buffer Size", min_value=1, value=defaults.max_images)
+    save_to_disk = st.sidebar.checkbox("Save to Disk", value=defaults.save_to_disk)
     
-    # Storage Path Row
+    # Storage Path Row (Accepted/Leave it as requested)
     def storage_row():
-        col1, col2, col3 = st.sidebar.columns([2, 5, 1])
+        st.sidebar.markdown("**Storage Path**")
+        col1, col2 = st.sidebar.columns([3, 1])
         with col1:
-            st.markdown("<div style='padding-top: 10px; font-weight: 500; font-size: 0.9rem;'>Storage</div>", unsafe_allow_html=True)
-        with col2:
             st.session_state.storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed", key="path_input")
-        with col3:
-            if st.button("📁", use_container_width=False, key="path_btn"):
+        with col2:
+            if st.button("📁", use_container_width=True, key="path_btn"):
                 picked_path = select_folder()
                 if picked_path:
                     st.session_state.storage_path = picked_path
@@ -94,9 +65,9 @@ def show_ui():
     storage_path = storage_row()
 
     # Manual Resolution
-    use_res = sidebar_row("Limit Res", "use_res", st.sidebar.checkbox, value=defaults.max_resolution is not None)
-    res_w = sidebar_row("Width", "res_w", st.sidebar.number_input, min_value=64, value=defaults.max_resolution[0] if defaults.max_resolution else 1280)
-    res_h = sidebar_row("Height", "res_h", st.sidebar.number_input, min_value=64, value=defaults.max_resolution[1] if defaults.max_resolution else 720)
+    use_res = st.sidebar.checkbox("Limit Resolution", value=defaults.max_resolution is not None)
+    res_w = st.sidebar.number_input("Width", min_value=64, value=defaults.max_resolution[0] if defaults.max_resolution else 1280, disabled=not use_res)
+    res_h = st.sidebar.number_input("Height", min_value=64, value=defaults.max_resolution[1] if defaults.max_resolution else 720, disabled=not use_res)
 
     max_resolution = [res_w, res_h] if use_res else None
 
