@@ -43,7 +43,19 @@ def show_ui():
     # Sidebar for Configuration
     st.sidebar.header("Configuration")
 
-    screen = st.sidebar.number_input("Screen Index", min_value=0, value=defaults.screen)
+    # Fetch monitors
+    monitors = manager.engine.list_monitors()
+    monitor_options = {
+        f"{m['label']} ({m['width']}x{m['height']})": m['index'] 
+        for m in monitors
+    }
+    
+    # Try to find the default monitor in the list
+    default_label = next((l for l, i in monitor_options.items() if i == defaults.screen), list(monitor_options.keys())[0])
+    
+    selected_monitor_label = st.sidebar.selectbox("Select Screen", options=list(monitor_options.keys()), index=list(monitor_options.keys()).index(default_label))
+    screen = monitor_options[selected_monitor_label]
+
     frequency = st.sidebar.slider("Frequency (Hz)", min_value=0.1, max_value=30.0, value=defaults.frequency)
     max_images = st.sidebar.number_input("Buffer Size", min_value=1, value=defaults.max_images)
     save_to_disk = st.sidebar.checkbox("Save to Disk", value=defaults.save_to_disk)
