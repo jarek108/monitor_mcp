@@ -89,14 +89,14 @@ def show_ui():
         
         with tab1:
             # We'll show the last captured image
-        if manager.buffer and manager.buffer.current_size > 0:
-            frames = manager.buffer.get_frames(start=-1, count=1)
-            if frames:
-                st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
-                # Auto-refresh logic for Streamlit
-                if status.is_active:
-                    time.sleep(1.0 / frequency)
-                    st.rerun()
+            if manager.buffer and manager.buffer.current_size > 0:
+                frames = manager.buffer.get_frames(start=-1, count=1)
+                if frames:
+                    st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
+                    # Auto-refresh logic for Streamlit
+                    if status.is_active:
+                        time.sleep(1.0 / frequency)
+                        st.rerun()
         
         with tab2:
             if manager.buffer and manager.buffer.current_size > 0:
