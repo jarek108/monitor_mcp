@@ -17,10 +17,16 @@ pip install -e .
 ```
 
 ### 2. Manual Testing (Dashboard)
-The project includes a built-in dashboard for easy manual control:
+After installation, the project includes a dedicated visual "Surface" for manual control. This eliminates the need for the generic MCP inspector:
+
 ```bash
+# Option A: Using the built-in CLI command
 monitor-mcp-ui
+
+# Option B: Running via python
+python -m monitor_mcp.ui
 ```
+
 This will open a browser window where you can:
 - Configure screen, frequency, and resolution.
 - Start/Stop monitoring with one click.
