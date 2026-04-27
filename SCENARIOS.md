@@ -49,3 +49,22 @@ Safely terminates the capture thread. This is crucial for resource management wh
 - **Capture**: Uses the `mss` library, which bypasses many of the performance bottlenecks found in standard Python imaging libraries.
 - **Threading**: Uses a `threading.Thread` with a `threading.Event` kill-switch to ensure the capture loop doesn't hang the main MCP server.
 - **Thread-Safety**: A `threading.Lock` protects the circular buffer during simultaneous write (capture loop) and read (LLM query) operations.
+
+---
+
+## 🔍 Relation to Existing Projects
+
+During the planning of `monitor_mcp`, several prominent projects were analyzed:
+
+1. **`Z-ComputerUse-MCP-Server`**: A robust server for full computer control (mouse/keyboard). While high-performance, it is designed for *action*. Using it would have required stripping out 80% of the code to create a dedicated observer.
+2. **`gemma-screen-observer`**: Focused on vision-based game testing. It performs analysis *inside* the capture loop. `monitor_mcp` differs by acting as a "dumb buffer" that allows the LLM to decide when and what to analyze retrospectively.
+3. **`Anthropic Computer Use Demo`**: The industry reference for visual agents, but primarily optimized for Linux/Docker/X11 environments.
+4. **`Screenpipe`**: Excellent for 24/7 recording and retrospective search, but less suited for fine-grained, tool-triggered observation sessions with specific frequency/resolution constraints.
+
+## ⚖️ Justification for Our Path
+
+We chose to build `monitor_mcp` from scratch to achieve three main goals:
+
+- **Lightweight Precision**: By building from scratch, we implemented the exact `get_imgs(start, count, interval)` logic requested without the overhead of existing automation frameworks.
+- **Cross-Platform Reliability**: We "stole" the best engine choice (`mss`) from top projects to ensure high-speed capture on Windows, Mac, and Linux, while keeping the implementation minimal and readable.
+- **Modern MCP Native**: Using `FastMCP` (Python) allowed us to create a server that is easy to extend, debug, and integrate into modern LLM workflows without legacy baggage.
