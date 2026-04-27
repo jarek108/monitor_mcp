@@ -55,17 +55,21 @@ def show_ui():
     save_to_disk = sidebar_row("Save to Disk", "save_disk", st.sidebar.checkbox, value=defaults.save_to_disk)
     
     # Storage Path Row
-    st.sidebar.markdown("**Storage Path**")
-    p_col1, p_col2 = st.sidebar.columns([3, 1])
-    with p_col1:
-        storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed")
-        st.session_state.storage_path = storage_path
-    with p_col2:
-        if st.button("📁", use_container_width=True):
-            picked_path = select_folder()
-            if picked_path:
-                st.session_state.storage_path = picked_path
-                st.rerun()
+    def storage_row():
+        col1, col2, col3 = st.sidebar.columns([1, 2, 1])
+        with col1:
+            st.markdown("<div style='padding-top: 10px; font-weight: 500;'>Storage</div>", unsafe_allow_html=True)
+        with col2:
+            st.session_state.storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed", key="path_input")
+        with col3:
+            if st.button("📁", use_container_width=True, key="path_btn"):
+                picked_path = select_folder()
+                if picked_path:
+                    st.session_state.storage_path = picked_path
+                    st.rerun()
+        return st.session_state.storage_path
+
+    storage_path = storage_row()
 
     # Manual Resolution
     use_res = sidebar_row("Limit Res", "use_res", st.sidebar.checkbox, value=defaults.max_resolution is not None)
