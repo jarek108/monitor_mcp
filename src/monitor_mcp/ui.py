@@ -126,7 +126,14 @@ def show_ui():
         uptime = int(time.time() - manager.buffer._buffer[0]['timestamp'])
     m3.metric("Uptime", f"{uptime}s")
     
-    m4.metric("Real FPS", f"{status.current_fps}")
+    # FPS Metric with conditional color
+    target_freq = status.config.frequency if status.config else frequency
+    fps_color = "red" if status.is_active and status.current_fps < (target_freq * 0.8) else "inherit"
+    
+    with m4:
+        st.markdown(f"**Real FPS**")
+        st.markdown(f"<p style='color:{fps_color}; font-size:24px; margin:0;'>{status.current_fps}</p>", unsafe_allow_html=True)
+        
     m5.metric("Last Frame", f"{status.last_frame_size_kb} KB")
     m6.metric("Total Size", f"{status.total_buffer_size_mb} MB")
 
