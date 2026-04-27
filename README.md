@@ -24,6 +24,9 @@ npx -y @modelcontextprotocol/inspector python -m monitor_mcp.server
 3. Use **`get_imgs`** with `start: -1` to see the latest frame.
 4. Use **`stop_monitoring`** when finished.
 
+### 📜 Scenarios & API Design
+For a detailed breakdown of use cases, planned scenarios, and the design philosophy of the retrieval API, see the [Scenarios & API Design Page](SCENARIOS.md).
+
 ### 3. LLM Integration
 Add the server to your MCP client configuration (e.g., Claude Desktop or Windsurf):
 ```json
