@@ -137,12 +137,6 @@ def show_ui():
     m5.metric("Last Frame", f"{status.last_frame_size_kb} KB")
     m6.metric("Total Size", f"{status.total_buffer_size_mb} MB")
 
-    # Add a global auto-refresh for metrics/status/live-view
-    # If monitoring is active, we refresh once per second
-    if status.is_active:
-        time.sleep(1.0)
-        st.rerun()
-
     st.markdown("---")
 
     # Live View & History
@@ -178,6 +172,11 @@ def show_ui():
                         )
                 else:
                     st.warning("No frames found for the given criteria.")
+
+    # Move auto-refresh to the VERY END so components actually render
+    if status.is_active:
+        time.sleep(1.0)
+        st.rerun()
 
 
 def main():
