@@ -46,30 +46,30 @@ class ObservationManager:
             
             self.config = config
             
+            # Generate Session ID and Subfolder
+            session_id = datetime.now().strftime("%y%m%d_%H%M%S")
+            session_path = Path(config.storage_path) / session_id
+            session_path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Session directory created: {session_path}")
+
+            # Save run_config.json
+            config_file = session_path / "run_config.json"
+            with open(config_file, "w") as f:
+                f.write(config.model_dump_json(indent=4))
+
             # Reset buffer only if requested or if size changed
+            # Note: We now pass the SESSION path to the buffer, not the root path
             if config.reset_cache or self.buffer is None or self.buffer.max_size != config.max_images:
                 logger.info("Initializing new buffer (reset_cache=True or size changed)")
-                
-                # Clear storage folder if reset_cache is True
-                if config.reset_cache and config.storage_path:
-                    storage_p = Path(config.storage_path)
-                    if storage_p.exists() and storage_p.is_dir():
-                        logger.info(f"Clearing storage folder: {storage_p}")
-                        for file in storage_p.glob("*.jpg"):
-                            try:
-                                file.unlink()
-                            except Exception as e:
-                                logger.error(f"Failed to delete {file}: {e}")
-
                 self.buffer = MonitorBuffer(
                     max_size=config.max_images,
-                    storage_path=config.storage_path,
+                    storage_path=str(session_path),
                     save_to_disk=config.save_to_disk
                 )
             else:
                 logger.info("Reusing existing buffer (reset_cache=False)")
-                # Optionally update storage settings on existing buffer
-                self.buffer.storage_path = Path(config.storage_path) if config.storage_path else None
+                # Update settings for current session
+                self.buffer.storage_path = session_path
                 self.buffer.save_to_disk = config.save_to_disk
 
             self._stop_event.clear()
@@ -202,12 +202,23 @@ class SimulationManager:
                 "offset": offset
             }
             
+            # Simulation results go into a subfolder of the test folder (or a fixed path)
+            # Let's use the monitoring storage path if available, or just the project root
+            storage_root = Path(manager.default_config.storage_path)
+            session_path = storage_root / f"sim_{self.current_session_id}"
+            session_path.mkdir(parents=True, exist_ok=True)
+
+            # Save run_config.json for simulation
+            config_file = session_path / "run_config.json"
+            with open(config_file, "w") as f:
+                f.write(json.dumps(self.current_config, indent=4))
+
             self.feeder = FolderFeeder(folder_path, self.buffer)
-            self.analyzer = AIAnalyzer(self.buffer)
+            self.analyzer = AIAnalyzer(self.buffer, log_dir=str(session_path))
             
             self.feeder.start()
             self.analyzer.start(model, prompt, delay, count, interval, offset, session_id=self.current_session_id)
-            logger.info(f"Simulation started (Session: {self.current_session_id}).")
+            logger.info(f"Simulation started (Session: {self.current_session_id}, Dir: {session_path}).")
 
     def stop(self):
         with self._lock:

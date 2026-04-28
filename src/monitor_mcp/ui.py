@@ -4,7 +4,9 @@ import base64
 import io
 import os
 import json
+from pathlib import Path
 from PIL import Image
+
 from monitor_mcp.server import manager, sim_manager
 from monitor_mcp.types import MonitorConfig
 from monitor_mcp.logging_setup import logger
@@ -17,31 +19,42 @@ def get_manager():
 def get_sim_manager():
     return sim_manager
 
-def read_last_log_entries(log_path: str, n: int = 15):
-    path = os.path.abspath(log_path)
-    if not os.path.exists(path):
+def read_last_log_entries(log_dir: str, n: int = 15):
+    """Read all JSONL logs in a directory and merge them sorted by timestamp."""
+    dir_path = Path(log_dir)
+    if not dir_path.exists() or not dir_path.is_dir():
         return []
-    entries = []
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            for line in lines[-n:]:
-                if line.strip():
-                    try:
-                        entries.append(json.loads(line))
-                    except:
-                        continue
-    except Exception as e:
-        logger.error(f"Error reading log: {e}")
-    return list(reversed(entries))
+    
+    all_entries = []
+    # Find all analysis_*.jsonl files (new format) or analysis_log.jsonl (old format)
+    log_files = list(dir_path.glob("analysis_*.jsonl"))
+    if (dir_path / "analysis_log.jsonl").exists():
+        log_files.append(dir_path / "analysis_log.jsonl")
 
-def clear_analysis_log():
-    log_path = "analysis_log.jsonl"
-    if os.path.exists(log_path):
+    for log_file in log_files:
         try:
-            os.remove(log_path)
+            with open(log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            all_entries.append(json.loads(line))
+                        except:
+                            continue
         except Exception as e:
-            logger.error(f"Failed to clear log: {e}")
+            logger.error(f"Error reading log {log_file}: {e}")
+    
+    # Sort by timestamp (assuming ISO format strings sort correctly)
+    all_entries.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return all_entries[:n]
+
+def clear_session_logs(log_dir: str):
+    dir_path = Path(log_dir)
+    if dir_path.exists() and dir_path.is_dir():
+        for log_file in dir_path.glob("analysis_*.jsonl"):
+            try:
+                os.remove(log_file)
+            except:
+                pass
 
 @st.dialog("Query Results")
 def show_query_results(mgr, start, count, interval):
@@ -55,9 +68,10 @@ def show_query_results(mgr, start, count, interval):
         for i, frame in enumerate(history_frames):
             cols[i % 3].image(frame["data"], caption=f"Idx: {frame['index']}", use_container_width=True)
     else:
-        st.warning("No frames found.")
+        st.warning("No frames found for the given criteria.")
 
 def show_ui():
+
     st.set_page_config(page_title="Monitor MCP", layout="wide")
     mgr = get_manager()
     smgr = get_sim_manager()
@@ -84,7 +98,7 @@ def show_ui():
         path = st.text_input("Path", value=defaults.storage_path)
         
         c1, c2 = st.columns(2)
-        if c1.button("Start", disabled=status.is_active, use_container_width=True):
+        if c1.button("Start", disabled=(status.is_active or is_simulating), use_container_width=True):
             cfg = MonitorConfig(screen=screen_idx, frequency=freq, max_images=m_imgs, storage_path=path, save_to_disk=s_disk, reset_cache=r_cache, draw_mouse=d_mouse)
             mgr.start(cfg)
             st.rerun()
@@ -102,7 +116,7 @@ def show_ui():
         sim_off = st.number_input("Offset", -10000, 10000, -1)
         
         sc1, sc2 = st.columns(2)
-        if sc1.button("Start Sim", disabled=is_simulating, use_container_width=True):
+        if sc1.button("Start Sim", disabled=(is_simulating or status.is_active), use_container_width=True):
             smgr.start(sim_folder, sim_model, sim_prompt, sim_delay, sim_cnt, sim_int, sim_off)
             st.rerun()
         if sc2.button("Stop Sim", disabled=not is_simulating, use_container_width=True):
@@ -146,32 +160,62 @@ def show_ui():
                 cols[i%4].image(f["data"], caption=f"Idx {f['index']}", use_container_width=True)
 
     with t3:
-        h_col1, h_col2 = st.columns([3, 1])
-        with h_col1:
-            st.subheader("Analysis Results")
-        with h_col2:
-            if st.button("🗑️ Clear", use_container_width=True): 
-                clear_analysis_log()
-                st.rerun()
+        # Get all session folders in storage path
+        storage_root = Path(defaults.storage_path)
+        if not storage_root.exists():
+            storage_root.mkdir(parents=True, exist_ok=True)
         
-        st.info(f"Storage: `{os.path.abspath('analysis_log.jsonl')}`")
+        # List subdirectories (sessions), sorted by name descending (most recent first)
+        sessions = sorted([d for d in storage_root.iterdir() if d.is_dir()], key=lambda x: x.name, reverse=True)
         
-        if smgr.current_session_id:
-            with st.expander("ℹ️ Current Session Config", expanded=False):
-                st.json(smgr.current_config)
-                st.caption(f"Session ID: `{smgr.current_session_id}`")
-
-        entries = read_last_log_entries("analysis_log.jsonl", n=20)
-        if not entries:
-            st.write("No entries found.")
+        if not sessions:
+            st.info(f"No sessions found in `{storage_root}`")
         else:
-            for e in entries:
-                with st.expander(f"🕒 {e.get('timestamp')} | Session: {e.get('session_id')}", expanded=(e.get('session_id') == smgr.current_session_id)):
-                    if "error" in e:
-                        st.error(e["error"])
-                    else:
-                        st.markdown(e.get("story"))
-                        st.caption(f"Model: {e.get('model')} | Frames: {e.get('frame_indices')}")
+            # Session Selector
+            session_names = [s.name for s in sessions]
+            # Use index 0 (most recent) as default, but keep track in session state to avoid jumps
+            if "selected_session_idx" not in st.session_state:
+                st.session_state.selected_session_idx = 0
+            
+            selected_session_name = st.selectbox("Select Session Folder", options=session_names, index=st.session_state.selected_session_idx)
+            st.session_state.selected_session_idx = session_names.index(selected_session_name)
+            
+            selected_path = storage_root / selected_session_name
+            
+            # Sub-header with Clear button
+            h_col1, h_col2 = st.columns([3, 1])
+            with h_col1:
+                st.subheader(f"Results for `{selected_session_name}`")
+            with h_col2:
+                if st.button("🗑️ Clear Logs", use_container_width=True, help="Clear analysis logs in this session folder"): 
+                    clear_session_logs(str(selected_path))
+                    st.rerun()
+            
+            # Show Config for this session
+            config_file = selected_path / "run_config.json"
+            if config_file.exists():
+                with st.expander("⚙️ View Session Config", expanded=False):
+                    try:
+                        with open(config_file, "r") as f:
+                            st.json(json.load(f))
+                    except:
+                        st.error("Failed to load session config.")
+
+            # Show Analysis Runs in this session
+            entries = read_last_log_entries(str(selected_path), n=20)
+            if not entries:
+                st.write("No analysis entries found in this session.")
+            else:
+                for e in entries:
+                    # Determine expansion state: if it's the current active simulation session, expand it
+                    is_current = (e.get('session_id') == smgr.current_session_id)
+                    with st.expander(f"🕒 {e.get('timestamp')} | Model: {e.get('model')}", expanded=is_current):
+                        if "error" in e:
+                            st.error(e["error"])
+                        else:
+                            st.markdown(e.get("story"))
+                            st.caption(f"Prompt: {e.get('prompt')}")
+                            st.caption(f"Frames: {e.get('frame_indices')}")
 
     if status.is_active or is_simulating:
         time.sleep(1)

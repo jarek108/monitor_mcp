@@ -29,16 +29,10 @@ class MonitorBuffer:
             actual_size = size_bytes if size_bytes is not None else (width * height * 3)
             
             logger.debug(f"Adding frame {index} to buffer ({width}x{height}, ~{actual_size/1024:.1f} KB)")
-            self._buffer.append({
-                "index": index,
-                "timestamp": timestamp,
-                "data": frame_data,
-                "width": width,
-                "height": height,
-                "size_bytes": actual_size
-            })
-            self._total_captured += 1
             
+            final_data = frame_data
+            data_type = "pil"
+
             if self.save_to_disk and self.storage_path:
                 # Save as JPEG for easy manual viewing
                 try:
@@ -50,8 +44,25 @@ class MonitorBuffer:
                     filepath = self.storage_path / filename
                     # frame_data is a PIL image
                     frame_data.save(filepath, "JPEG", quality=85)
-                except Exception:
+                    
+                    # OFF-LOAD FROM MEMORY: Store the path instead of PIL image
+                    final_data = filepath
+                    data_type = "path"
+                except Exception as e:
+                    logger.error(f"Failed to save frame {index} to disk: {e}")
+                    # Fallback to keeping in memory if save fails
                     pass
+
+            self._buffer.append({
+                "index": index,
+                "timestamp": timestamp,
+                "data": final_data,
+                "data_type": data_type,
+                "width": width,
+                "height": height,
+                "size_bytes": actual_size
+            })
+            self._total_captured += 1
 
     def get_frames(self, start: int = -1, count: int = 1, interval: int = 1) -> List[dict]:
         """
@@ -71,7 +82,6 @@ class MonitorBuffer:
                 start_idx = available_count + start
             else:
                 # Absolute index search - find the frame with the requested index
-                # Since indices are monotonically increasing, we can calculate the offset
                 first_index = self._buffer[0]["index"]
                 start_idx = start - first_index
             
@@ -86,7 +96,20 @@ class MonitorBuffer:
             
             for _ in range(count):
                 if 0 <= current_idx < available_count:
-                    result.append(self._buffer[current_idx])
+                    frame = self._buffer[current_idx].copy()
+                    
+                    # ON-DEMAND LOADING: If data is a path, load it now
+                    if frame.get("data_type") == "path":
+                        try:
+                            frame["data"] = Image.open(frame["data"])
+                            # We don't change data_type in the copy, just the data itself
+                        except Exception as e:
+                            logger.error(f"Failed to load frame from disk: {e}")
+                            # Skip this frame if it can't be loaded
+                            current_idx += interval
+                            continue
+
+                    result.append(frame)
                     current_idx += interval
                 else:
                     break

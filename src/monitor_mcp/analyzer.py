@@ -17,9 +17,10 @@ except ImportError:
 from .logging_setup import logger
 
 class AIAnalyzer:
-    def __init__(self, buffer: MonitorBuffer, log_path: str = "analysis_log.jsonl"):
+    def __init__(self, buffer: MonitorBuffer, log_dir: str = "."):
         self.buffer = buffer
-        self.log_path = Path(log_path)
+        self.log_dir = Path(log_dir)
+        self.log_path = None # Will be set in start()
         self._stop_event = threading.Event()
         self._thread = None
         self._client = None
@@ -34,6 +35,11 @@ class AIAnalyzer:
         if not self._client:
             logger.error("AIAnalyzer: Cannot start, client not initialized.")
             return
+
+        # Create a specific log file for this analysis run inside the log_dir
+        run_ts = datetime.now().strftime("%y%m%d_%H%M%S")
+        self.log_path = self.log_dir / f"analysis_{run_ts}.jsonl"
+        logger.info(f"AIAnalyzer: Logging to {self.log_path}")
 
         self._stop_event.clear()
         self._thread = threading.Thread(
@@ -50,6 +56,8 @@ class AIAnalyzer:
             self._thread.join(timeout=2.0)
 
     def _log_result(self, data: dict):
+        if not self.log_path:
+            return
         with open(self.log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
