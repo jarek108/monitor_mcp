@@ -3,15 +3,34 @@ import time
 import base64
 import io
 import os
+import json
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image
 from monitor_mcp.server import ObservationManager
 from monitor_mcp.types import MonitorConfig
+from monitor_mcp.simulator import FolderFeeder
+from monitor_mcp.analyzer import AIAnalyzer
 
 @st.cache_resource
 def get_manager():
     return ObservationManager()
+
+def read_last_log_entries(log_path: str, n: int = 5):
+    path = os.path.abspath(log_path)
+    if not os.path.exists(path):
+        return []
+    
+    entries = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            for line in lines[-n:]:
+                if line.strip():
+                    entries.append(json.loads(line))
+    except Exception as e:
+        print(f"Error reading log: {e}")
+    return list(reversed(entries))
 
 @st.dialog("Query Results")
 def show_query_results(manager, start, count, interval):
@@ -53,6 +72,15 @@ def show_ui():
 
     manager = get_manager()
     defaults = manager.default_config
+
+    # Simulation State
+    if "sim_manager" not in st.session_state:
+        # Isolated buffer for simulation
+        from monitor_mcp.buffer import MonitorBuffer
+        st.session_state.sim_buffer = MonitorBuffer(max_size=3600)
+        st.session_state.feeder = None
+        st.session_state.analyzer = None
+        st.session_state.is_simulating = False
 
     # Initialize session state for folder path
     if "storage_path" not in st.session_state:
@@ -171,32 +199,112 @@ def show_ui():
     st.markdown("---")
 
     # Live View & History
-    if status.is_active or status.buffer_size > 0:
-        tab1, tab2 = st.tabs(["📺 Live View", "🕒 Recent History"])
-        
-        with tab1:
+    tab1, tab2, tab3 = st.tabs(["📺 Live View", "🕒 Recent History", "🤖 AI Sandbox"])
+    
+    with tab1:
+        if status.is_active or status.buffer_size > 0:
             # We'll show the last captured image
             if manager.buffer and manager.buffer.current_size > 0:
                 frames = manager.buffer.get_frames(start=-1, count=1)
                 if frames:
                     st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
+        else:
+            st.info("Start monitoring to see live view.")
+    
+    with tab2:
+        if manager.buffer and manager.buffer.current_size > 0:
+            st.subheader("Recent Captures")
+            # Fixed view of last 12 frames for convenience
+            history_frames = manager.buffer.get_frames(start=-1, count=12, interval=-1)
+            if history_frames:
+                cols = st.columns(4)
+                for i, frame in enumerate(history_frames):
+                    cols[i % 4].image(
+                        frame["data"], 
+                        caption=f"Idx: {frame['index']}", 
+                        width="stretch"
+                    )
+        else:
+            st.info("No frames in buffer.")
+
+    with tab3:
+        st.header("AI Analysis Sandbox")
         
-        with tab2:
-            if manager.buffer and manager.buffer.current_size > 0:
-                st.subheader("Recent Captures")
-                # Fixed view of last 12 frames for convenience
-                history_frames = manager.buffer.get_frames(start=-1, count=12, interval=-1)
-                if history_frames:
-                    cols = st.columns(4)
-                    for i, frame in enumerate(history_frames):
-                        cols[i % 4].image(
-                            frame["data"], 
-                            caption=f"Idx: {frame['index']}", 
-                            width="stretch"
-                        )
+        # Configuration for Simulation
+        s_col1, s_col2 = st.columns([1, 2])
+        
+        with s_col1:
+            st.subheader("Simulation Config")
+            sim_folder = st.text_input("Test Folder Path", value="E:\\test_recording")
+            sim_model = st.selectbox("AI Model", options=[
+                "gemini-3.1-flash-lite-preview",
+                "gemini-2.0-flash-lite-preview-02-05",
+                "gemini-2.0-pro-exp-02-05"
+            ], index=0)
+            sim_prompt = st.text_area("Analysis Prompt", value="Describe what is happening on the screen. Focus on any changes between the frames.")
+            sim_delay = st.number_input("Analysis Delay (s)", min_value=5, value=15)
+            sim_count = st.number_input("Frame Count", min_value=1, max_value=20, value=9)
+            sim_interval = st.number_input("Frame Interval (Stride)", value=-10)
+            
+            if not st.session_state.is_simulating:
+                if st.button("🚀 Start Simulation", use_container_width=True):
+                    # Reset buffer
+                    st.session_state.sim_buffer.clear()
+                    # Start Feeder
+                    st.session_state.feeder = FolderFeeder(sim_folder, st.session_state.sim_buffer)
+                    st.session_state.feeder.start()
+                    # Start Analyzer
+                    st.session_state.analyzer = AIAnalyzer(st.session_state.sim_buffer)
+                    st.session_state.analyzer.start(
+                        model=sim_model,
+                        prompt=sim_prompt,
+                        delay=sim_delay,
+                        count=sim_count,
+                        interval=sim_interval
+                    )
+                    st.session_state.is_simulating = True
+                    st.rerun()
+            else:
+                if st.button("🛑 Stop Simulation", use_container_width=True):
+                    if st.session_state.feeder:
+                        st.session_state.feeder.stop()
+                    if st.session_state.analyzer:
+                        st.session_state.analyzer.stop()
+                    st.session_state.is_simulating = False
+                    st.rerun()
+
+        with s_col2:
+            st.subheader("Simulation Monitor")
+            if st.session_state.is_simulating:
+                sb = st.session_state.sim_buffer
+                st.write(f"Frames in Simulation Buffer: **{sb.current_size}**")
+                
+                # Show what AI is seeing (last sequence)
+                sim_frames = sb.get_frames(start=-1, count=sim_count, interval=sim_interval)
+                if sim_frames:
+                    st.markdown("**Last sequence sent to AI:**")
+                    cols = st.columns(min(len(sim_frames), 3))
+                    for i, f in enumerate(reversed(sim_frames[:3])): # Show first 3 of the sequence
+                         cols[i % 3].image(f["data"], caption=f"Idx: {f['index']}", width="stretch")
+            
+            st.markdown("---")
+            st.subheader("Analysis Log")
+            entries = read_last_log_entries("analysis_log.jsonl", n=5)
+            if entries:
+                for entry in entries:
+                    with st.expander(f"🕒 {entry.get('timestamp', 'Unknown')} - {entry.get('model', 'Unknown')}", expanded=True):
+                        if "error" in entry:
+                            st.error(entry["error"])
+                        else:
+                            st.markdown(entry.get("story", "No story generated."))
+                            st.caption(f"Prompt: {entry.get('prompt')}")
+                            st.caption(f"Frames analyzed: {entry.get('frame_indices')}")
+            else:
+                st.info("No analysis entries yet. Start the simulation to begin.")
 
     # Move auto-refresh to the VERY END so components actually render
-    if status.is_active:
+    # Add refresh if simulation is running too
+    if status.is_active or st.session_state.is_simulating:
         time.sleep(1.0)
         st.rerun()
 

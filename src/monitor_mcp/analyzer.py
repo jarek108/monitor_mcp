@@ -1,0 +1,107 @@
+import time
+import threading
+import base64
+import io
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+from PIL import Image
+from .buffer import MonitorBuffer
+
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
+class AIAnalyzer:
+    def __init__(self, buffer: MonitorBuffer, log_path: str = "analysis_log.jsonl"):
+        self.buffer = buffer
+        self.log_path = Path(log_path)
+        self._stop_event = threading.Event()
+        self._thread = None
+        self._client = None
+        
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if api_key and genai:
+            self._client = genai.Client(api_key=api_key)
+
+    def start(self, model: str, prompt: str, delay: int, count: int, interval: int):
+        if not self._client:
+            print("AIAnalyzer: GEMINI_API_KEY not set or google-genai not installed.")
+            return
+
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._run,
+            args=(model, prompt, delay, count, interval),
+            daemon=True,
+            name="AIAnalyzer"
+        )
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=2.0)
+
+    def _log_result(self, data: dict):
+        with open(self.log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(data, ensure_ascii=False) + "\n")
+
+    def _run(self, model: str, prompt: str, delay: int, count: int, interval: int):
+        print(f"AIAnalyzer: Starting analysis loop with model {model}...")
+        
+        while not self._stop_event.is_set():
+            time.sleep(delay)
+            
+            if self._stop_event.is_set():
+                break
+
+            frames = self.buffer.get_frames(start=-1, count=count, interval=interval)
+            if not frames:
+                continue
+
+            # Strategy 1: Sequential + Timestamps
+            chronological_frames = list(reversed(frames))
+            base_time = chronological_frames[0]["timestamp"]
+            
+            contents = [
+                "You are an AI screen monitor. Below are sequential frames captured from the screen.",
+                f"User Prompt: {prompt}\n\nTimeline of Frames:"
+            ]
+            
+            for i, f in enumerate(chronological_frames):
+                rel_time = f["timestamp"] - base_time
+                ts_str = datetime.fromtimestamp(f["timestamp"]).strftime("%H:%M:%S.%f")[:-2]
+                contents.append(f"--- Frame {i+1} at {ts_str} (T+{rel_time:.2f}s) ---")
+                
+                # Image data is already PIL in our buffer (or raw object)
+                # But the SDK prefers PIL or bytes. Our buffer stores PIL.
+                contents.append(f["data"])
+
+            try:
+                print(f"AIAnalyzer: Calling model {model}...")
+                response = self._client.models.generate_content(
+                    model=model,
+                    contents=contents
+                )
+                
+                result = {
+                    "timestamp": datetime.now().isoformat(),
+                    "model": model,
+                    "prompt": prompt,
+                    "story": response.text,
+                    "frame_indices": [f["index"] for f in chronological_frames]
+                }
+                self._log_result(result)
+                print("AIAnalyzer: Logged new entry.")
+                
+            except Exception as e:
+                print(f"AIAnalyzer Error: {e}")
+                self._log_result({
+                    "timestamp": datetime.now().isoformat(),
+                    "error": str(e)
+                })
+
+        print("AIAnalyzer loop stopped.")
