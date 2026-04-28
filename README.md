@@ -31,7 +31,20 @@ This will open a browser window where you can:
 - Configure screen, frequency, and resolution.
 - Start/Stop monitoring with one click.
 - See a **live preview** of the capture.
-- Browse the history gallery of recently captured frames.
+- Browse the history gallery and manually test `get_imgs` queries.
+
+### 🤖 Live AI Analysis
+The repository includes an example script that uses Gemini to perform continuous live analysis of your screen:
+
+1. **Set your API Key**:
+   ```bash
+   export GEMINI_API_KEY="your-api-key"
+   ```
+2. **Run the analysis loop**:
+   ```bash
+   python examples/analyze_loop.py
+   ```
+   *This script captures frames in the background and sends them to Gemini every 10 seconds for descriptive analysis.*
 
 ### 3. Alternative Testing (MCP Inspector)
 If you want to test the raw MCP protocol:

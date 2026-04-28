@@ -15,6 +15,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "numpy>=1.24.0",
     "streamlit>=1.24.0",
+    "pyautogui>=0.9.54",
+    "google-genai>=0.1.0",
 ]
 
 [project.scripts]
