@@ -4,8 +4,6 @@ import base64
 import io
 import os
 import json
-import tkinter as tk
-from tkinter import filedialog
 from PIL import Image
 from monitor_mcp.server import manager, sim_manager
 from monitor_mcp.types import MonitorConfig
@@ -19,7 +17,7 @@ def get_manager():
 def get_sim_manager():
     return sim_manager
 
-def read_last_log_entries(log_path: str, n: int = 5):
+def read_last_log_entries(log_path: str, n: int = 15):
     path = os.path.abspath(log_path)
     if not os.path.exists(path):
         return []
@@ -66,36 +64,31 @@ def show_query_results(mgr, start, count, interval):
     else:
         st.warning("No frames found for the given criteria.")
 
-def select_folder():
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    folder_path = filedialog.askdirectory(master=root)
-    root.destroy()
-    return folder_path
-
 def show_ui():
-    # Page config
     st.set_page_config(
         page_title="Monitor MCP Dashboard",
         page_icon="🖥️",
-        layout="wide",
-        initial_sidebar_state="expanded"
+        layout="wide"
     )
 
     mgr = get_manager()
     smgr = get_sim_manager()
     defaults = mgr.default_config
 
-    # Initialize session state for storage path
-    if "storage_path" not in st.session_state:
-        st.session_state.storage_path = defaults.storage_path
-
     st.title("🖥️ Monitor MCP Dashboard")
     st.markdown("---")
 
     # --- SIDEBAR CONFIGURATION ---
     st.sidebar.header("Dashboard Controls")
+
+    # Initialize variables with defaults
+    screen = defaults.screen
+    frequency = defaults.frequency
+    max_images = defaults.max_images
+    save_to_disk = defaults.save_to_disk
+    reset_cache = defaults.reset_cache
+    draw_mouse = defaults.draw_mouse
+    storage_path = defaults.storage_path
 
     # 1. MONITORING CONFIG
     with st.sidebar.expander("📂 Monitoring Config", expanded=True):
@@ -106,26 +99,16 @@ def show_ui():
         selected_monitor_label = st.selectbox("Select Screen", options=list(monitor_options.keys()), index=list(monitor_options.keys()).index(default_label))
         screen = monitor_options[selected_monitor_label]
 
-        frequency = st.slider("Frequency (Hz)", min_value=0.1, max_value=30.0, value=defaults.frequency)
-        max_images = st.number_input("Buffer Size", min_value=1, value=defaults.max_images)
+        frequency = st.slider("Frequency (Hz)", min_value=0.1, max_value=30.0, value=float(defaults.frequency))
+        max_images = st.number_input("Buffer Size", min_value=1, value=int(defaults.max_images))
         save_to_disk = st.checkbox("Save to Disk", value=defaults.save_to_disk)
         reset_cache = st.checkbox("Reset Cache on Start", value=defaults.reset_cache)
         draw_mouse = st.checkbox("Draw Mouse Cursor", value=defaults.draw_mouse)
-        
-        st.markdown("**Storage Path**")
-        col_p1, col_p2 = st.columns([3, 1])
-        with col_p1:
-            st.session_state.storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed", key="path_input")
-        with col_p2:
-            if st.button("📁", key="path_btn", use_container_width=True):
-                picked_path = select_folder()
-                if picked_path:
-                    st.session_state.storage_path = picked_path
-                    st.rerun()
+        storage_path = st.text_input("Storage Path", value=defaults.storage_path)
 
         use_res = st.checkbox("Limit Resolution", value=defaults.max_resolution is not None)
-        res_w = st.number_input("Width", min_value=64, value=defaults.max_resolution[0] if defaults.max_resolution else 1280, disabled=not use_res)
-        res_h = st.number_input("Height", min_value=64, value=defaults.max_resolution[1] if defaults.max_resolution else 720, disabled=not use_res)
+        res_w = st.number_input("Max Width", min_value=64, value=defaults.max_resolution[0] if defaults.max_resolution else 1280, disabled=not use_res)
+        res_h = st.number_input("Max Height", min_value=64, value=defaults.max_resolution[1] if defaults.max_resolution else 720, disabled=not use_res)
         max_resolution = [res_w, res_h] if use_res else None
 
         st.markdown("---")
@@ -133,14 +116,9 @@ def show_ui():
         col_m1, col_m2 = st.columns(2)
         if col_m1.button("🚀 Start Monitoring", disabled=status.is_active, use_container_width=True):
             config = MonitorConfig(
-                screen=screen,
-                frequency=frequency,
-                max_images=max_images,
-                max_resolution=max_resolution,
-                storage_path=st.session_state.storage_path,
-                save_to_disk=save_to_disk,
-                reset_cache=reset_cache,
-                draw_mouse=draw_mouse
+                screen=screen, frequency=frequency, max_images=max_images,
+                max_resolution=max_resolution, storage_path=storage_path,
+                save_to_disk=save_to_disk, reset_cache=reset_cache, draw_mouse=draw_mouse
             )
             mgr.start(config)
             st.rerun()
@@ -218,17 +196,21 @@ def show_ui():
     tab1, tab2, tab3 = st.tabs(["📺 Live View", "🕒 Recent History", "🤖 AI Sandbox"])
     
     with tab1:
-        if status.is_active and mgr.buffer and mgr.buffer.current_size > 0:
-            frames = mgr.buffer.get_frames(start=-1, count=1)
-            if frames:
-                st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", use_container_width=True)
+        if (status.is_active or is_simulating):
+            # Try to get latest frame from active buffer (Simulation or Live)
+            active_buffer = smgr.buffer if is_simulating else mgr.buffer
+            if active_buffer and active_buffer.current_size > 0:
+                frames = active_buffer.get_frames(start=-1, count=1)
+                if frames:
+                    st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", use_container_width=True)
         else:
-            st.info("Start monitoring to see live view.")
+            st.info("Start monitoring or simulation to see live view.")
     
     with tab2:
-        if mgr.buffer and mgr.buffer.current_size > 0:
+        active_buffer = smgr.buffer if is_simulating else mgr.buffer
+        if active_buffer and active_buffer.current_size > 0:
             st.subheader("Recent Captures")
-            history_frames = mgr.buffer.get_frames(start=-1, count=12, interval=-1)
+            history_frames = active_buffer.get_frames(start=-1, count=12, interval=-1)
             if history_frames:
                 cols = st.columns(4)
                 for i, frame in enumerate(history_frames):
@@ -248,26 +230,24 @@ def show_ui():
                 
                 if feeder and feeder.is_finished:
                     st.success("Playback Complete!")
-                    # Check if analyzer is still running
-                    if smgr.analyzer and not (smgr.analyzer._thread and smgr.analyzer._thread.is_alive()):
-                        # Everything finished
-                        pass
                 
                 st.write(f"Frames in Simulation Buffer: **{sb.current_size}**")
                 sim_frames = sb.get_frames(start=sim_offset, count=sim_count, interval=sim_interval)
                 if sim_frames:
-                    st.markdown("**Last sequence sent to AI:**")
+                    st.markdown("**AI Context Preview:**")
+                    cols = st.columns(min(len(sim_frames), 3))
                     preview_indices = [0, len(sim_frames)//2, -1]
-                    preview_frames = [sim_frames[i] for i in preview_indices if 0 <= i < len(sim_frames) or (i == -1 and len(sim_frames) > 0)]
-                    seen = set()
                     final_preview = []
-                    for f in preview_frames:
-                        if f["index"] not in seen:
-                            final_preview.append(f)
-                            seen.add(f["index"])
-                    cols = st.columns(len(final_preview))
+                    seen = set()
+                    for idx in preview_indices:
+                        if 0 <= idx < len(sim_frames) or (idx == -1 and len(sim_frames) > 0):
+                            f = sim_frames[idx]
+                            if f["index"] not in seen:
+                                final_preview.append(f)
+                                seen.add(f["index"])
+                    
                     for i, f in enumerate(final_preview):
-                         cols[i].image(f["data"], caption=f"Idx: {f['index']}", use_container_width=True)
+                        cols[i % 3].image(f["data"], caption=f"Idx: {f['index']}", use_container_width=True)
             else:
                 st.info("Simulation is not running. Configure and start it from the sidebar.")
 
@@ -276,7 +256,7 @@ def show_ui():
             with h_col1:
                 st.subheader("Analysis Log")
             with h_col2:
-                if st.button("🗑️ Clear Log", width="stretch"):
+                if st.button("🗑️ Clear Log", use_container_width=True):
                     clear_analysis_log()
                     st.rerun()
 
@@ -305,7 +285,6 @@ def show_ui():
             else:
                 st.info("No analysis entries yet.")
 
-    # Auto-refresh
     if status.is_active or is_simulating:
         time.sleep(1.0)
         st.rerun()
@@ -315,13 +294,7 @@ def main():
     from streamlit.web import cli as stcli
     import os
     file_path = os.path.abspath(__file__)
-    sys.argv = [
-        "streamlit", 
-        "run", 
-        file_path, 
-        "--browser.gatherUsageStats", "False",
-        "--server.headless", "True"
-    ]
+    sys.argv = ["streamlit", "run", file_path, "--browser.gatherUsageStats", "False", "--server.headless", "True"]
     sys.exit(stcli.main())
 
 if __name__ == "__main__":
