@@ -105,7 +105,7 @@ def analyze_loop(model: str, prompt: str, delay: int, count: int, interval: int)
 
 if __name__ == "__main__":
     # You can change these defaults or pass them via CLI
-    DEFAULT_MODEL = "gemini-2.0-flash-lite-preview-02-05"
+    DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
     DEFAULT_PROMPT = "Describe what is happening on the screen. Focus on any changes between the frames."
     
     analyze_loop(
