@@ -3,6 +3,7 @@ import time
 import base64
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Tuple
 from mcp.server.fastmcp import FastMCP
@@ -167,9 +168,59 @@ class ObservationManager:
             total_buffer_size_mb=round(total_buffer_size_mb, 1)
         )
 
+from .simulator import FolderFeeder
+from .analyzer import AIAnalyzer
+
+class SimulationManager:
+    def __init__(self):
+        from .buffer import MonitorBuffer
+        self.buffer = MonitorBuffer(max_size=3600)
+        self.feeder = None
+        self.analyzer = None
+        self._lock = threading.Lock()
+        self.current_session_id = None
+        self.current_config = None
+
+    @property
+    def is_running(self):
+        return (self.feeder and not self.feeder.is_finished) or (self.analyzer and self.analyzer._thread and self.analyzer._thread.is_alive())
+
+    def start(self, folder_path, model, prompt, delay, count, interval, offset):
+        with self._lock:
+            self.stop()
+            self.buffer.clear()
+            self.current_session_id = datetime.now().strftime("%y%m%d_%H%M%S")
+            self.current_config = {
+                "folder": folder_path,
+                "model": model,
+                "prompt": prompt,
+                "delay": delay,
+                "count": count,
+                "interval": interval,
+                "offset": offset
+            }
+            
+            self.feeder = FolderFeeder(folder_path, self.buffer)
+            self.analyzer = AIAnalyzer(self.buffer)
+            
+            self.feeder.start()
+            self.analyzer.start(model, prompt, delay, count, interval, offset, session_id=self.current_session_id)
+            logger.info(f"Simulation started (Session: {self.current_session_id}).")
+
+    def stop(self):
+        with self._lock:
+            if self.feeder:
+                self.feeder.stop()
+                self.feeder = None
+            if self.analyzer:
+                self.analyzer.stop()
+                self.analyzer = None
+            logger.info("Simulation stopped.")
+
 # Initialize MCP Server
 mcp = FastMCP("monitor_mcp")
 manager = ObservationManager()
+sim_manager = SimulationManager()
 
 @mcp.tool()
 def start_monitoring(

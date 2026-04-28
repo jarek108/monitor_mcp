@@ -30,7 +30,7 @@ class AIAnalyzer:
         else:
             logger.error("AIAnalyzer: GEMINI_API_KEY not set or google-genai not installed.")
 
-    def start(self, model: str, prompt: str, delay: int, count: int, interval: int, offset: int = -1):
+    def start(self, model: str, prompt: str, delay: int, count: int, interval: int, offset: int = -1, session_id: str = "default"):
         if not self._client:
             logger.error("AIAnalyzer: Cannot start, client not initialized.")
             return
@@ -38,7 +38,7 @@ class AIAnalyzer:
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run,
-            args=(model, prompt, delay, count, interval, offset),
+            args=(model, prompt, delay, count, interval, offset, session_id),
             daemon=True,
             name="AIAnalyzer"
         )
@@ -53,8 +53,8 @@ class AIAnalyzer:
         with open(self.log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
-    def _run(self, model: str, prompt: str, delay: int, count: int, interval: int, offset: int):
-        logger.info(f"AIAnalyzer: Starting analysis loop with model {model} (offset={offset})...")
+    def _run(self, model: str, prompt: str, delay: int, count: int, interval: int, offset: int, session_id: str):
+        logger.info(f"AIAnalyzer: Starting analysis loop with model {model} (offset={offset}, session={session_id})...")
         
         while not self._stop_event.is_set():
             time.sleep(delay)
@@ -109,11 +109,18 @@ class AIAnalyzer:
                 print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🤖 AI Analysis ({model}):\n{response.text}\n" + "-"*50)
                 
                 result = {
+                    "session_id": session_id,
                     "timestamp": datetime.now().isoformat(),
                     "model": model,
                     "prompt": prompt,
                     "story": response.text,
-                    "frame_indices": [f["index"] for f in chronological_frames]
+                    "frame_indices": [f["index"] for f in chronological_frames],
+                    "config": {
+                        "delay": delay,
+                        "count": count,
+                        "interval": interval,
+                        "offset": offset
+                    }
                 }
                 self._log_result(result)
                 logger.info("AIAnalyzer: Story logged to JSONL.")
@@ -121,6 +128,7 @@ class AIAnalyzer:
             except Exception as e:
                 logger.error(f"AIAnalyzer Error: {e}")
                 self._log_result({
+                    "session_id": session_id,
                     "timestamp": datetime.now().isoformat(),
                     "error": str(e)
                 })
