@@ -109,6 +109,13 @@ def show_ui():
             smgr.stop()
             st.rerun()
 
+    with st.sidebar.expander("🔍 Manual Query", expanded=False):
+        q_start = st.number_input("Start", value=-1)
+        q_count = st.number_input("Count", 1, 100, 12)
+        q_interval = st.number_input("Interval", -100, 100, -1)
+        if st.button("Fetch Frames", use_container_width=True):
+            show_query_results(mgr, q_start, q_count, q_interval)
+
     # Main Area Metrics
     col_m = st.columns(6)
     col_m[0].metric("Buffer", f"{status.buffer_size}")
@@ -139,11 +146,32 @@ def show_ui():
                 cols[i%4].image(f["data"], caption=f"Idx {f['index']}", use_container_width=True)
 
     with t3:
-        if st.button("Clear Log"): clear_analysis_log(); st.rerun()
-        entries = read_last_log_entries("analysis_log.jsonl")
-        for e in entries:
-            with st.expander(f"{e.get('timestamp')} | {e.get('session_id')}"):
-                st.markdown(e.get("story"))
+        h_col1, h_col2 = st.columns([3, 1])
+        with h_col1:
+            st.subheader("Analysis Results")
+        with h_col2:
+            if st.button("🗑️ Clear", use_container_width=True): 
+                clear_analysis_log()
+                st.rerun()
+        
+        st.info(f"Storage: `{os.path.abspath('analysis_log.jsonl')}`")
+        
+        if smgr.current_session_id:
+            with st.expander("ℹ️ Current Session Config", expanded=False):
+                st.json(smgr.current_config)
+                st.caption(f"Session ID: `{smgr.current_session_id}`")
+
+        entries = read_last_log_entries("analysis_log.jsonl", n=20)
+        if not entries:
+            st.write("No entries found.")
+        else:
+            for e in entries:
+                with st.expander(f"🕒 {e.get('timestamp')} | Session: {e.get('session_id')}", expanded=(e.get('session_id') == smgr.current_session_id)):
+                    if "error" in e:
+                        st.error(e["error"])
+                    else:
+                        st.markdown(e.get("story"))
+                        st.caption(f"Model: {e.get('model')} | Frames: {e.get('frame_indices')}")
 
     if status.is_active or is_simulating:
         time.sleep(1)
