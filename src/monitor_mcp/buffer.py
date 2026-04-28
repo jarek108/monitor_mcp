@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import List, Optional, Any
 from .types import Frame
 
+from .logging_setup import logger
+
 class MonitorBuffer:
     def __init__(self, max_size: int, storage_path: Optional[str] = None, save_to_disk: bool = False):
         self.max_size = max_size
@@ -16,6 +18,7 @@ class MonitorBuffer:
         self._total_captured = 0
         
         if self.save_to_disk and self.storage_path:
+            logger.info(f"Initializing disk storage at {self.storage_path}")
             self.storage_path.mkdir(parents=True, exist_ok=True)
 
     def add_frame(self, frame_data: Any, timestamp: float, width: int, height: int, size_bytes: Optional[int] = None):
@@ -25,7 +28,7 @@ class MonitorBuffer:
             # Use provided size or fall back to raw estimation
             actual_size = size_bytes if size_bytes is not None else (width * height * 3)
             
-            print(f"Adding frame {index} to buffer ({width}x{height}, ~{actual_size/1024:.1f} KB)")
+            logger.debug(f"Adding frame {index} to buffer ({width}x{height}, ~{actual_size/1024:.1f} KB)")
             self._buffer.append({
                 "index": index,
                 "timestamp": timestamp,

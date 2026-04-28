@@ -6,6 +6,8 @@ from datetime import datetime
 from PIL import Image
 from .buffer import MonitorBuffer
 
+from .logging_setup import logger
+
 class FolderFeeder:
     def __init__(self, folder_path: str, buffer: MonitorBuffer):
         self.folder_path = Path(folder_path)
@@ -39,14 +41,14 @@ class FolderFeeder:
             ts = dt.timestamp() + (int(ms_str) / 10000.0)
             return ts
         except Exception as e:
-            print(f"Error parsing filename {filename}: {e}")
+            logger.error(f"Error parsing filename {filename}: {e}")
             return time.time()
 
     def _run(self):
-        print(f"Starting playback from {self.folder_path}...")
+        logger.info(f"Starting playback from {self.folder_path}...")
         files = sorted([f for f in self.folder_path.glob("frame_*.jpg")])
         if not files:
-            print(f"No frames found in {self.folder_path}")
+            logger.warning(f"No frames found in {self.folder_path}")
             self.is_finished = True
             return
 
@@ -76,9 +78,9 @@ class FolderFeeder:
                     size_bytes=f.stat().st_size
                 )
             except Exception as e:
-                print(f"Error loading frame {f}: {e}")
+                logger.error(f"Error loading frame {f}: {e}")
 
             last_ts = current_ts
 
-        print("Playback finished.")
+        logger.info("Playback finished.")
         self.is_finished = True

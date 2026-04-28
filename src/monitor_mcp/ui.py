@@ -11,6 +11,7 @@ from monitor_mcp.server import ObservationManager
 from monitor_mcp.types import MonitorConfig
 from monitor_mcp.simulator import FolderFeeder
 from monitor_mcp.analyzer import AIAnalyzer
+from monitor_mcp.logging_setup import logger
 
 @st.cache_resource
 def get_manager():
@@ -29,7 +30,7 @@ def read_last_log_entries(log_path: str, n: int = 5):
                 if line.strip():
                     entries.append(json.loads(line))
     except Exception as e:
-        print(f"Error reading log: {e}")
+        logger.error(f"Error reading log: {e}")
     return list(reversed(entries))
 
 @st.dialog("Query Results")
@@ -252,23 +253,45 @@ def show_ui():
         with s_col1:
             st.subheader("Simulation Status")
             if st.session_state.is_simulating:
+                feeder = st.session_state.feeder
                 sb = st.session_state.sim_buffer
+                
+                if feeder and feeder.is_finished:
+                    st.success("Playback Complete!")
+                    # Auto-stop logic
+                    if st.session_state.analyzer:
+                        st.session_state.analyzer.stop()
+                    st.session_state.is_simulating = False
+                    st.rerun()
+                
                 st.write(f"Frames in Simulation Buffer: **{sb.current_size}**")
                 
                 # Show what AI is seeing (last sequence)
-                # Use params from session state/input
                 sim_frames = sb.get_frames(start=sim_offset, count=sim_count, interval=sim_interval)
                 if sim_frames:
                     st.markdown("**Last sequence sent to AI:**")
-                    cols = st.columns(min(len(sim_frames), 3))
-                    # Show oldest and newest of the sequence for context
-                    for i, f in enumerate([sim_frames[0], sim_frames[len(sim_frames)//2], sim_frames[-1]]):
-                         cols[i % 3].image(f["data"], caption=f"Idx: {f['index']}", width="stretch")
+                    # Show oldest, middle, and newest for context
+                    preview_indices = [0, len(sim_frames)//2, -1]
+                    preview_frames = [sim_frames[i] for i in preview_indices if 0 <= i < len(sim_frames) or (i == -1 and len(sim_frames) > 0)]
+                    # Deduplicate in case count is very small
+                    seen = set()
+                    final_preview = []
+                    for f in preview_frames:
+                        if f["index"] not in seen:
+                            final_preview.append(f)
+                            seen.add(f["index"])
+
+                    cols = st.columns(len(final_preview))
+                    for i, f in enumerate(final_preview):
+                         cols[i].image(f["data"], caption=f"Idx: {f['index']}", width="stretch")
             else:
                 st.info("Simulation is not running. Configure and start it from the sidebar.")
 
         with s_col2:
             st.subheader("Analysis Log")
+            st.caption(f"📜 Story Log: `{os.path.abspath('analysis_log.jsonl')}`")
+            st.caption(f"🛠️ System Log: `{os.path.abspath('monitor.log')}`")
+            
             entries = read_last_log_entries("analysis_log.jsonl", n=5)
             if entries:
                 for entry in entries:

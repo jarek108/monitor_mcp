@@ -14,6 +14,8 @@ try:
 except ImportError:
     genai = None
 
+from .logging_setup import logger
+
 class AIAnalyzer:
     def __init__(self, buffer: MonitorBuffer, log_path: str = "analysis_log.jsonl"):
         self.buffer = buffer
@@ -25,10 +27,12 @@ class AIAnalyzer:
         api_key = os.environ.get("GEMINI_API_KEY")
         if api_key and genai:
             self._client = genai.Client(api_key=api_key)
+        else:
+            logger.error("AIAnalyzer: GEMINI_API_KEY not set or google-genai not installed.")
 
     def start(self, model: str, prompt: str, delay: int, count: int, interval: int, offset: int = -1):
         if not self._client:
-            print("AIAnalyzer: GEMINI_API_KEY not set or google-genai not installed.")
+            logger.error("AIAnalyzer: Cannot start, client not initialized.")
             return
 
         self._stop_event.clear()
@@ -50,7 +54,7 @@ class AIAnalyzer:
             f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
     def _run(self, model: str, prompt: str, delay: int, count: int, interval: int, offset: int):
-        print(f"AIAnalyzer: Starting analysis loop with model {model} (offset={offset})...")
+        logger.info(f"AIAnalyzer: Starting analysis loop with model {model} (offset={offset})...")
         
         while not self._stop_event.is_set():
             time.sleep(delay)
@@ -60,6 +64,7 @@ class AIAnalyzer:
 
             frames = self.buffer.get_frames(start=offset, count=count, interval=interval)
             if not frames:
+                logger.debug("AIAnalyzer: No frames in buffer, skipping cycle.")
                 continue
 
             # Strategy 1: Sequential + Timestamps
@@ -91,17 +96,17 @@ class AIAnalyzer:
                 rel_time = f["timestamp"] - base_time
                 ts_str = datetime.fromtimestamp(f["timestamp"]).strftime("%H:%M:%S.%f")[:-2]
                 contents.append(f"--- Frame {i+1} at {ts_str} (T+{rel_time:.2f}s) ---")
-                
-                # Image data is already PIL in our buffer (or raw object)
-                # But the SDK prefers PIL or bytes. Our buffer stores PIL.
                 contents.append(f["data"])
 
             try:
-                print(f"AIAnalyzer: Calling model {model}...")
+                logger.info(f"AIAnalyzer: Requesting analysis from {model}...")
                 response = self._client.models.generate_content(
                     model=model,
                     contents=contents
                 )
+                
+                # RESTORE CLEAR TERMINAL PRINT
+                print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🤖 AI Analysis ({model}):\n{response.text}\n" + "-"*50)
                 
                 result = {
                     "timestamp": datetime.now().isoformat(),
@@ -111,13 +116,13 @@ class AIAnalyzer:
                     "frame_indices": [f["index"] for f in chronological_frames]
                 }
                 self._log_result(result)
-                print("AIAnalyzer: Logged new entry.")
+                logger.info("AIAnalyzer: Story logged to JSONL.")
                 
             except Exception as e:
-                print(f"AIAnalyzer Error: {e}")
+                logger.error(f"AIAnalyzer Error: {e}")
                 self._log_result({
                     "timestamp": datetime.now().isoformat(),
                     "error": str(e)
                 })
 
-        print("AIAnalyzer loop stopped.")
+        logger.info("AIAnalyzer loop stopped.")

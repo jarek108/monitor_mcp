@@ -10,6 +10,8 @@ from .engine import ScreenEngine
 from .buffer import MonitorBuffer
 from .types import MonitorConfig, Frame, MonitoringStatus
 
+from .logging_setup import logger
+
 class ObservationManager:
     def __init__(self):
         self.engine = ScreenEngine()
@@ -30,33 +32,33 @@ class ObservationManager:
                 with open(config_path, "r") as f:
                     data = json.load(f)
                     return MonitorConfig(**data)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to load config.json: {e}")
         return MonitorConfig()
 
     def start(self, config: MonitorConfig):
         with self._lock:
-            print(f"Starting monitoring with config: {config}")
+            logger.info(f"Starting monitoring with config: {config}")
             if self._thread and self._thread.is_alive():
-                print("Stopping existing thread...")
+                logger.info("Stopping existing thread...")
                 self.stop()
             
             self.config = config
             
             # Reset buffer only if requested or if size changed
             if config.reset_cache or self.buffer is None or self.buffer.max_size != config.max_images:
-                print("Initializing new buffer (reset_cache=True or size changed)")
+                logger.info("Initializing new buffer (reset_cache=True or size changed)")
                 
                 # Clear storage folder if reset_cache is True
                 if config.reset_cache and config.storage_path:
                     storage_p = Path(config.storage_path)
                     if storage_p.exists() and storage_p.is_dir():
-                        print(f"Clearing storage folder: {storage_p}")
+                        logger.info(f"Clearing storage folder: {storage_p}")
                         for file in storage_p.glob("*.jpg"):
                             try:
                                 file.unlink()
                             except Exception as e:
-                                print(f"Failed to delete {file}: {e}")
+                                logger.error(f"Failed to delete {file}: {e}")
 
                 self.buffer = MonitorBuffer(
                     max_size=config.max_images,
@@ -64,7 +66,7 @@ class ObservationManager:
                     save_to_disk=config.save_to_disk
                 )
             else:
-                print("Reusing existing buffer (reset_cache=False)")
+                logger.info("Reusing existing buffer (reset_cache=False)")
                 # Optionally update storage settings on existing buffer
                 self.buffer.storage_path = Path(config.storage_path) if config.storage_path else None
                 self.buffer.save_to_disk = config.save_to_disk
@@ -82,6 +84,7 @@ class ObservationManager:
 
     def stop(self):
         with self._lock:
+            logger.info("Stopping monitoring...")
             self._stop_event.set()
             if self._thread:
                 self._thread.join(timeout=2.0)
@@ -89,9 +92,9 @@ class ObservationManager:
             self._current_fps = 0.0
 
     def _run_loop(self):
-        print("Starting observation loop...")
+        logger.info("Observation loop started.")
         if not self.config or not self.buffer:
-            print("Missing config or buffer, exiting loop.")
+            logger.error("Missing config or buffer, exiting loop.")
             return
 
         interval = 1.0 / self.config.frequency
@@ -103,7 +106,8 @@ class ObservationManager:
             try:
                 img = self.engine.capture(
                     screen_index=self.config.screen,
-                    resize=resize_tuple
+                    resize=resize_tuple,
+                    draw_mouse=self.config.draw_mouse
                 )
                 
                 # Encode once to get actual compressed size for reporting
@@ -129,15 +133,15 @@ class ObservationManager:
                     self._current_fps = 0.0
 
             except Exception as e:
-                print(f"Capture error: {e}")
+                logger.error(f"Capture error: {e}")
                 import traceback
-                traceback.print_exc()
+                logger.debug(traceback.format_exc())
             
             # Precise sleep to maintain frequency
             elapsed = time.time() - loop_start
             sleep_time = max(0, interval - elapsed)
             time.sleep(sleep_time)
-        print("Observation loop stopped.")
+        logger.info("Observation loop stopped.")
 
     def get_status(self) -> MonitoringStatus:
         is_active = self._thread is not None and self._thread.is_alive()
@@ -175,7 +179,8 @@ def start_monitoring(
     max_resolution: Optional[List[int]] = None,
     storage_path: Optional[str] = None,
     save_to_disk: Optional[bool] = None,
-    reset_cache: Optional[bool] = None
+    reset_cache: Optional[bool] = None,
+    draw_mouse: Optional[bool] = None
 ) -> str:
     """
     Start monitoring the screen.
@@ -186,6 +191,7 @@ def start_monitoring(
     :param storage_path: Folder to save images to
     :param save_to_disk: Whether to save every frame to disk
     :param reset_cache: Whether to clear the buffer on start
+    :param draw_mouse: Whether to draw the mouse cursor on frames
     """
     # Use defaults from config.json if not provided
     defaults = manager.default_config
@@ -197,7 +203,8 @@ def start_monitoring(
         max_resolution=max_resolution if max_resolution is not None else defaults.max_resolution,
         storage_path=storage_path if storage_path is not None else defaults.storage_path,
         save_to_disk=save_to_disk if save_to_disk is not None else defaults.save_to_disk,
-        reset_cache=reset_cache if reset_cache is not None else defaults.reset_cache
+        reset_cache=reset_cache if reset_cache is not None else defaults.reset_cache,
+        draw_mouse=draw_mouse if draw_mouse is not None else defaults.draw_mouse
     )
     manager.start(config)
     return f"Monitoring started: {config}"
