@@ -61,7 +61,7 @@ def show_query_results(mgr, start, count, interval):
             cols[i % 3].image(
                 frame["data"], 
                 caption=f"Idx: {frame['index']} ({frame.get('size_bytes', 0)//1024}KB)", 
-                width="stretch"
+                use_container_width=True
             )
     else:
         st.warning("No frames found for the given criteria.")
@@ -117,7 +117,7 @@ def show_ui():
         with col_p1:
             st.session_state.storage_path = st.text_input("Path", value=st.session_state.storage_path, label_visibility="collapsed", key="path_input")
         with col_p2:
-            if st.button("📁", key="path_btn", width="stretch"):
+            if st.button("📁", key="path_btn", use_container_width=True):
                 picked_path = select_folder()
                 if picked_path:
                     st.session_state.storage_path = picked_path
@@ -131,7 +131,7 @@ def show_ui():
         st.markdown("---")
         status = mgr.get_status()
         col_m1, col_m2 = st.columns(2)
-        if col_m1.button("🚀 Start Monitoring", disabled=status.is_active, width="stretch"):
+        if col_m1.button("🚀 Start Monitoring", disabled=status.is_active, use_container_width=True):
             config = MonitorConfig(
                 screen=screen,
                 frequency=frequency,
@@ -144,7 +144,7 @@ def show_ui():
             )
             mgr.start(config)
             st.rerun()
-        if col_m2.button("🛑 Stop Monitoring", disabled=not status.is_active, width="stretch"):
+        if col_m2.button("🛑 Stop Monitoring", disabled=not status.is_active, use_container_width=True):
             mgr.stop()
             st.rerun()
 
@@ -166,11 +166,11 @@ def show_ui():
         is_simulating = smgr.is_running
         col_s1, col_s2 = st.columns(2)
         
-        if col_s1.button("🚀 Start Simulation", disabled=is_simulating, width="stretch"):
+        if col_s1.button("🚀 Start Simulation", disabled=is_simulating, use_container_width=True):
             smgr.start(sim_folder, sim_model, sim_prompt, sim_delay, sim_count, sim_interval, sim_offset)
             st.rerun()
             
-        if col_s2.button("🛑 Stop Simulation", disabled=not is_simulating, width="stretch"):
+        if col_s2.button("🛑 Stop Simulation", disabled=not is_simulating, use_container_width=True):
             smgr.stop()
             st.rerun()
 
@@ -179,7 +179,7 @@ def show_ui():
         q_start = st.number_input("Query Start Index", value=-1)
         q_count = st.number_input("Query Count", min_value=1, value=12)
         q_interval = st.number_input("Query Interval", value=-1)
-        if st.button("🔍 Fetch Frames (Popup)", width="stretch", key="manual_query_btn"):
+        if st.button("🔍 Fetch Frames (Popup)", use_container_width=True, key="manual_query_btn"):
             show_query_results(mgr, q_start, q_count, q_interval)
 
     # --- MAIN AREA ---
@@ -221,7 +221,7 @@ def show_ui():
         if status.is_active and mgr.buffer and mgr.buffer.current_size > 0:
             frames = mgr.buffer.get_frames(start=-1, count=1)
             if frames:
-                st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", width="stretch")
+                st.image(frames[0]["data"], caption=f"Latest Frame (Index: {frames[0]['index']})", use_container_width=True)
         else:
             st.info("Start monitoring to see live view.")
     
@@ -232,7 +232,7 @@ def show_ui():
             if history_frames:
                 cols = st.columns(4)
                 for i, frame in enumerate(history_frames):
-                    cols[i % 4].image(frame["data"], caption=f"Idx: {frame['index']}", width="stretch")
+                    cols[i % 4].image(frame["data"], caption=f"Idx: {frame['index']}", use_container_width=True)
         else:
             st.info("No frames in buffer.")
 
@@ -267,7 +267,7 @@ def show_ui():
                             seen.add(f["index"])
                     cols = st.columns(len(final_preview))
                     for i, f in enumerate(final_preview):
-                         cols[i].image(f["data"], caption=f"Idx: {f['index']}", width="stretch")
+                         cols[i].image(f["data"], caption=f"Idx: {f['index']}", use_container_width=True)
             else:
                 st.info("Simulation is not running. Configure and start it from the sidebar.")
 
