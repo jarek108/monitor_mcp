@@ -9,3 +9,9 @@ dist/
 .env
 screenshots/
  recordings/
+analysis_log.jsonl
+monitor.log
+ui_inspection.png
+test_capture.png
+verify_mss.py
+inspect_ui.py

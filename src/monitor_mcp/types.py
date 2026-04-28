@@ -10,6 +10,7 @@ class MonitorConfig(BaseModel):
     storage_path: str = Field("screenshots", description="Folder to save images to if save_to_disk is true")
     save_to_disk: bool = Field(True, description="Whether to save every captured frame to the storage_path")
     reset_cache: bool = Field(True, description="Whether to clear the circular buffer when monitoring starts")
+    draw_mouse: bool = Field(True, description="Whether to draw the mouse cursor on the captured frames")
 
 class Frame(BaseModel):
     index: int

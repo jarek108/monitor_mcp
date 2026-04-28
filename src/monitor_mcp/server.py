@@ -183,7 +183,9 @@ class SimulationManager:
 
     @property
     def is_running(self):
-        return (self.feeder and not self.feeder.is_finished) or (self.analyzer and self.analyzer._thread and self.analyzer._thread.is_alive())
+        running_feeder = bool(self.feeder and not self.feeder.is_finished)
+        running_analyzer = bool(self.analyzer and self.analyzer._thread and self.analyzer._thread.is_alive())
+        return running_feeder or running_analyzer
 
     def start(self, folder_path, model, prompt, delay, count, interval, offset):
         with self._lock:
