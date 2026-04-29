@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Any
+from PIL import Image
 from .types import Frame
 
 from .logging_setup import logger
