@@ -83,4 +83,4 @@ This document serves as the absolute source of truth for the behavior of the `mo
 ### 4.2 Session Navigation & Visibility
 *   **Session List:** Past and current sessions MUST be listed in a highly visible, scrollable window/container (e.g., using a radio list) alongside the main stream, replacing hidden dropdowns (`st.selectbox`). 
 *   **Auto-Selection:** When a new Monitoring or Simulation session is initiated, the Session List MUST automatically select and focus on the newly created session, immediately rendering its context in the main view.
-*   **Log Visibility:** Selecting any historical session from the list MUST immediately load its specific `run_config.json` and analysis logs into the UI.
+*   **Retrospective Viewing Contract (Offline State):** Selecting a historical `sim_` session from the navigation list MUST immediately render the AI Analysis Logs for that session in the bottom main view, regardless of whether the engine is currently idle or active. The UI must not revert to "Recent History" simply because the engine is stopped if a simulation session is explicitly selected.

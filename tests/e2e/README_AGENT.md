@@ -31,6 +31,7 @@ Do not bypass the UI. You must write and run Python Playwright scripts to physic
 
 **PROGRAMMATIC UX STATE ASSERTIONS:** Do not just "click and wait". Your scripts must programmatically `assert` the exact UX states defined in the Spec (e.g., `assert await start_button.is_disabled()`) immediately after an interaction.
 **AUTONOMOUS LIFECYCLE SCENARIOS:** If the spec defines a background process that should auto-terminate (e.g., a video ending), you must write a "hands-off" test scenario that waits for the natural conclusion and asserts that the system gracefully stopped without manual intervention.
+**RETROSPECTIVE & COLD-START JOURNEYS (Proactive Testing):** You MUST proactively design tests for "Offline" or "Retrospective" states. Do not limit testing to active mechanical state transitions. Ask yourself: *"How will a user interact with this feature when the system is completely idle?"* If a feature stores historical data, you must write a test that opens the app from a cold start, clicks the historical data, and asserts that the data is visibly rendered even though the engine is stopped.
 
 - **Artifact Pathing:** Pass the current `tests/e2e/runs/run_.../` path to the test runner so screenshots and logs are saved there.
 - **Live Capture Test:** (Navigate, Click Start, Assert states, Wait, Screenshot, Click Stop, Assert states)

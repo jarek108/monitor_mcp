@@ -256,9 +256,10 @@ def show_main_area(mgr, smgr, defaults):
             st.info("Stream inactive. Start monitoring or simulation to see frames.")
 
         # Bottom Section: Context-Aware
-        is_viewing_sim = selected_session_name.startswith("sim_") if selected_session_name else False
+        # Show logs if actively simulating OR if looking at a past simulation session
+        show_logs = is_simulating or (selected_session_name and selected_session_name.startswith("sim_"))
         
-        if is_viewing_sim:
+        if show_logs:
             st.subheader("AI Analysis Logs")
             if selected_session_name:
                 entries = read_last_log_entries(str(storage_root / selected_session_name), n=20)

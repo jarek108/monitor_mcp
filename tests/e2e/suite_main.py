@@ -96,6 +96,35 @@ async def run_test(run_dir):
                     # ASSERTION: Autonomous State Reset (Spec 2.2/2.3)
                     assert success, "SPEC VIOLATION: UI did not automatically reset after simulation completion!"
                     print("[PASS] UI State Synchronization (Autonomous Stop)")
+                    
+                    # --- Test C: Retrospective Viewing Contract ---
+                    print("--- Test C: Retrospective Viewing (Offline State) ---")
+                    # Reload the page to simulate a cold start
+                    await page.reload()
+                    await page.wait_for_selector("section[data-testid='stSidebar']", timeout=20000)
+                    await asyncio.sleep(2)
+                    
+                    # Because we just ran a simulation, auto-selection should immediately select it
+                    # on cold start, so AI Analysis Logs should be visible without us even clicking.
+                    assert await ai_logs_header.is_visible(), "SPEC VIOLATION: AI Analysis Logs should automatically render on reload if latest session is a sim."
+                    print("[PASS] Retrospective Auto-Selection on Reload")
+                    
+                    # Let's explicitly click it anyway to fulfill the contract test mechanics
+                    radio_label = page.locator("label").filter(has_text=selected_value)
+                    if await radio_label.count() > 0:
+                        await radio_label.first.click()
+                        print(f"Clicked historical session: {selected_value}")
+                        await asyncio.sleep(1)
+                        
+                        # Layout Swap Assertion (Retrospective)
+                        assert await ai_logs_header.is_visible(), "SPEC VIOLATION: AI Analysis Logs did NOT appear when clicking historical session!"
+                        assert not await history_header.is_visible(), "SPEC VIOLATION: Recent History remained visible incorrectly."
+                        print("[PASS] Retrospective Viewing Contract")
+                        
+                        screenshot_path_retro = os.path.join(run_dir, "sim_retrospective_success.png")
+                        await page.screenshot(path=screenshot_path_retro)
+                    else:
+                        print("Could not find the historical session in the radio list to click.")
 
                 else:
                     print("Folder input not visible.")
