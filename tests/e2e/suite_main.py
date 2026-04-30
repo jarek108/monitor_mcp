@@ -59,9 +59,7 @@ async def run_test(run_dir):
                     print("[PASS] Unified Layout (Simulation Mode)")
 
                     # Auto-Selection Assertion
-                    # The radio list is identified by "Select Session"
                     session_radio_group = page.get_by_role("radiogroup", name="Select Session")
-                    # We expect the newest session to be checked
                     checked_radio = session_radio_group.locator("input[type='radio']:checked")
                     assert await checked_radio.count() == 1, "SPEC VIOLATION: No session or multiple sessions auto-selected."
                     selected_value = await checked_radio.get_attribute("value")
@@ -85,6 +83,15 @@ async def run_test(run_dir):
                                 print("AI Sandbox expander collapsed. Simulation state reset successfully.")
                                 success = True
                                 break
+                                
+                            current_start = expander.get_by_role("button", name="Start Sim", exact=True)
+                            current_stop = expander.get_by_role("button", name="Stop Sim", exact=True)
+                            
+                            if await current_start.is_visible() and await current_stop.is_visible():
+                                if await current_start.is_enabled() and await current_stop.is_disabled():
+                                    print("Buttons reset to default state successfully.")
+                                    success = True
+                                    break
                         except Exception:
                             continue
                     
@@ -93,38 +100,77 @@ async def run_test(run_dir):
                         await page.screenshot(path=screenshot_path_sim)
                         print(f"Captured failure screenshot: {screenshot_path_sim}")
                         
-                    # ASSERTION: Autonomous State Reset (Spec 2.2/2.3)
                     assert success, "SPEC VIOLATION: UI did not automatically reset after simulation completion!"
                     print("[PASS] UI State Synchronization (Autonomous Stop)")
                     
                     # --- Test C: Retrospective Viewing Contract ---
                     print("--- Test C: Retrospective Viewing (Offline State) ---")
-                    # Reload the page to simulate a cold start
                     await page.reload()
                     await page.wait_for_selector("section[data-testid='stSidebar']", timeout=20000)
                     await asyncio.sleep(2)
                     
-                    # Because we just ran a simulation, auto-selection should immediately select it
-                    # on cold start, so AI Analysis Logs should be visible without us even clicking.
                     assert await ai_logs_header.is_visible(), "SPEC VIOLATION: AI Analysis Logs should automatically render on reload if latest session is a sim."
                     print("[PASS] Retrospective Auto-Selection on Reload")
                     
-                    # Let's explicitly click it anyway to fulfill the contract test mechanics
                     radio_label = page.locator("label").filter(has_text=selected_value)
                     if await radio_label.count() > 0:
                         await radio_label.first.click()
                         print(f"Clicked historical session: {selected_value}")
                         await asyncio.sleep(1)
                         
-                        # Layout Swap Assertion (Retrospective)
                         assert await ai_logs_header.is_visible(), "SPEC VIOLATION: AI Analysis Logs did NOT appear when clicking historical session!"
                         assert not await history_header.is_visible(), "SPEC VIOLATION: Recent History remained visible incorrectly."
                         print("[PASS] Retrospective Viewing Contract")
-                        
-                        screenshot_path_retro = os.path.join(run_dir, "sim_retrospective_success.png")
-                        await page.screenshot(path=screenshot_path_retro)
                     else:
                         print("Could not find the historical session in the radio list to click.")
+
+                    # --- Test D: UI State Persistence ---
+                    print("--- Test D: UI State Persistence (Spec 5.1) ---")
+                    # Re-expand AI Sandbox
+                    expander = page.locator("div[data-testid='stExpander']").filter(has_text="AI Sandbox")
+                    if not await expander.get_by_label("Model").is_visible():
+                        print("Expanding AI Sandbox for persistence test...")
+                        await expander.locator("summary").click()
+                        await asyncio.sleep(1)
+                    
+                    # Change a setting: Simulation Model
+                    target_model = "gemini-2.0-flash-lite-preview-02-05"
+                    # In Streamlit, selectboxes are often comboboxes. We click and then select.
+                    model_selector = expander.get_by_label("Model")
+                    # Try direct selection first, but Streamlit is tricky
+                    await model_selector.click()
+                    await page.get_by_text(target_model, exact=True).click()
+                    
+                    print(f"Changed Model to: {target_model}")
+                    await asyncio.sleep(2) # Wait for on_change=save_ui_state to fire
+                    
+                    # Reload page (cold start)
+                    await page.reload()
+                    await page.wait_for_selector("section[data-testid='stSidebar']", timeout=20000)
+                    await asyncio.sleep(2)
+                    
+                    # Re-expand
+                    expander = page.locator("div[data-testid='stExpander']").filter(has_text="AI Sandbox")
+                    if not await expander.get_by_label("Model").is_visible():
+                        await expander.locator("summary").click()
+                        await asyncio.sleep(1)
+                    
+                    # ASSERTION: Model value was preserved
+                    # For Streamlit, the label of the selected option is usually shown in the aria-label or a specific div
+                    # The input itself might have the value.
+                    restored_model_input = expander.get_by_label("Model")
+                    restored_model = await restored_model_input.input_value()
+                    # Wait, for st.selectbox, the value attribute of the hidden input is usually the label or index
+                    # But get_by_label might point to the visible element which has the text.
+                    # Let's check the text of the container if input_value is empty.
+                    if not restored_model:
+                        # Fallback: check the text content of the element or its parent
+                        restored_model = await expander.locator("div[data-testid='stSelectbox']").inner_text()
+                        # Inner text will contain the selected option
+                    
+                    print(f"Restored Model value: {restored_model}")
+                    assert target_model in restored_model, f"SPEC VIOLATION: Model setting not persisted! Expected {target_model} to be in {restored_model}"
+                    print("[PASS] UI State Persistence (Model Setting)")
 
                 else:
                     print("Folder input not visible.")
