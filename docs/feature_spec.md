@@ -84,3 +84,13 @@ This document serves as the absolute source of truth for the behavior of the `mo
 *   **Session List:** Past and current sessions MUST be listed in a highly visible, scrollable window/container (e.g., using a radio list) alongside the main stream, replacing hidden dropdowns (`st.selectbox`). 
 *   **Auto-Selection:** When a new Monitoring or Simulation session is initiated, the Session List MUST automatically select and focus on the newly created session, immediately rendering its context in the main view.
 *   **Retrospective Viewing Contract (Offline State):** Selecting a historical `sim_` session from the navigation list MUST immediately render the AI Analysis Logs for that session in the bottom main view, regardless of whether the engine is currently idle or active. The UI must not revert to "Recent History" simply because the engine is stopped if a simulation session is explicitly selected.
+
+---
+
+## 5. Feature: UI State Persistence
+
+### 5.1 Persistence Contract
+*   The application MUST persist all user-configurable UI parameters (e.g., text inputs, numbers, sliders, checkboxes) across browser refreshes and server restarts.
+*   **Scope:** This includes, but is not limited to, settings in the "Monitoring", "AI Sandbox", and "Manual Query" expandable sidebars.
+*   **Storage Location:** The persistent state MUST be saved in a hidden JSON file located strictly within the isolated logging directory (`logs/.ui_state.json`), maintaining the cleanliness of the project root.
+*   **Real-time Synchronization:** The persistent state file MUST be updated dynamically in real-time as the user modifies values on the dashboard, ensuring no manual "Save" action is required to persist settings.
