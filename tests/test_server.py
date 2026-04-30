@@ -6,18 +6,14 @@ import time
 
 @pytest.fixture
 def mock_engine():
-    with patch('monitor_mcp.engine.mss.mss') as mock_mss:
-        # Mock monitor info
-        mock_mss.return_value.monitors = [
-            {"left": 0, "top": 0, "width": 1920, "height": 1080},
-            {"left": 0, "top": 0, "width": 1920, "height": 1080}
-        ]
-        # Mock grab return
-        mock_shot = MagicMock()
-        mock_shot.size = (1920, 1080)
-        mock_shot.bgra = b'\x00' * (1920 * 1080 * 4)
-        mock_mss.return_value.grab.return_value = mock_shot
-        yield mock_mss
+    with patch('monitor_mcp.server.ScreenEngine.capture') as mock_capture:
+        from PIL import Image
+        mock_img = Image.new('RGB', (1920, 1080), color='black')
+        mock_capture.return_value = mock_img
+        
+        with patch('monitor_mcp.server.ScreenEngine.encode_image') as mock_encode:
+            mock_encode.return_value = b'fake_image_data'
+            yield mock_capture
 
 def test_manager_lifecycle(mock_engine):
     manager = ObservationManager()
@@ -47,6 +43,6 @@ def test_get_imgs_logic(mock_engine):
     assert status.buffer_size > 0
     
     # Test tool-like retrieval (though calling manager directly here)
-    frames = manager.buffer.get_frames(start=-1, count=1)
+    frames = manager.buffer.get_frames(start_frame_index=-1, frame_count=1)
     assert len(frames) == 1
     assert frames[0]["index"] == status.frames_captured - 1

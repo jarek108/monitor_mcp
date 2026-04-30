@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-def setup_logging(log_file: str = "monitor.log"):
+def setup_logging():
     """Configure logging to both file and terminal (with different levels)."""
     logger = logging.getLogger("monitor_mcp")
     logger.setLevel(logging.DEBUG)
@@ -10,6 +10,11 @@ def setup_logging(log_file: str = "monitor.log"):
     # Avoid duplicate handlers
     if logger.handlers:
         return logger
+
+    # Create logs directory
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "monitor.log"
 
     # Create formatters
     file_formatter = logging.Formatter(
@@ -20,12 +25,23 @@ def setup_logging(log_file: str = "monitor.log"):
     )
 
     # File Handler (Full Detail)
-    fh = logging.FileHandler(log_file, encoding='utf-8')
+    fh = logging.FileHandler(log_path, encoding='utf-8')
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(file_formatter)
 
     # Console Handler (High Level Info)
-    ch = logging.StreamHandler(sys.stdout)
+    # Use a stream wrapper to handle encoding issues on some terminals (e.g. Windows CMD)
+    class SafeStreamHandler(logging.StreamHandler):
+        def emit(self, record):
+            try:
+                super().emit(record)
+            except UnicodeEncodeError:
+                if self.stream and hasattr(self.stream, 'encoding'):
+                    msg = self.format(record)
+                    self.stream.write(msg.encode('ascii', 'replace').decode('ascii') + self.terminator)
+                    self.flush()
+
+    ch = SafeStreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     ch.setFormatter(console_formatter)
 

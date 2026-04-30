@@ -15,3 +15,10 @@ ui_inspection.png
 test_capture.png
 verify_mss.py
 inspect_ui.py
+
+# Testing Artifacts
+tests/e2e/runs/
+tests/e2e/mock_recording/
+runner_log.txt
+last_run_dir.txt
+

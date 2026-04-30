@@ -16,10 +16,10 @@ class FolderFeeder:
         self._thread = None
         self.is_finished = False
 
-    def start(self):
+    def start(self, ttl_minutes: int = 0):
         self._stop_event.clear()
         self.is_finished = False
-        self._thread = threading.Thread(target=self._run, daemon=True, name="FolderFeeder")
+        self._thread = threading.Thread(target=self._run, args=(ttl_minutes,), daemon=True, name="FolderFeeder")
         self._thread.start()
 
     def stop(self):
@@ -44,8 +44,11 @@ class FolderFeeder:
             logger.error(f"Error parsing filename {filename}: {e}")
             return time.time()
 
-    def _run(self):
-        logger.info(f"Starting playback from {self.folder_path}...")
+    def _run(self, ttl_minutes: int):
+        logger.info(f"Starting playback from {self.folder_path} (ttl={ttl_minutes})...")
+        start_time = time.time()
+        ttl_seconds = ttl_minutes * 60 if ttl_minutes > 0 else None
+        
         files = sorted([f for f in self.folder_path.glob("frame_*.jpg")])
         if not files:
             logger.warning(f"No frames found in {self.folder_path}")
@@ -56,6 +59,11 @@ class FolderFeeder:
         
         for f in files:
             if self._stop_event.is_set():
+                break
+
+            # Check TTL
+            if ttl_seconds and (time.time() - start_time) > ttl_seconds:
+                logger.info(f"FolderFeeder: TTL limit reached ({ttl_minutes} min). Stopping playback.")
                 break
 
             current_ts = self._parse_timestamp(f.name)

@@ -7,7 +7,7 @@ def test_buffer_basic_add():
     assert buf.current_size == 1
     assert buf.total_captured == 1
     
-    frames = buf.get_frames(start=-1, count=1)
+    frames = buf.get_frames(start_frame_index=-1, frame_count=1)
     assert len(frames) == 1
     assert frames[0]["data"] == "data1"
     assert frames[0]["size_bytes"] == 1024
@@ -22,7 +22,7 @@ def test_buffer_circular_wrap():
     assert buf.current_size == 3
     assert buf.total_captured == 4
     
-    frames = buf.get_frames(start=0, count=3)
+    frames = buf.get_frames(start_frame_index=0, frame_count=3)
     assert frames[0]["data"] == "2"
     assert frames[1]["data"] == "3"
     assert frames[2]["data"] == "4"
@@ -34,7 +34,7 @@ def test_buffer_complex_indexing():
     
     # LLM case: get 10 images, from the last one (-1), jumping backwards every 4 images
     # get_imgs(start = -1, count = 10, interval = -4)
-    frames = buf.get_frames(start=-1, count=5, interval=-4)
+    frames = buf.get_frames(start_frame_index=-1, frame_count=5, frame_interval=-4)
     # Expected indices in buffer: 19, 15, 11, 7, 3
     assert len(frames) == 5
     assert frames[0]["data"] == "19"
@@ -50,11 +50,11 @@ def test_buffer_absolute_indexing():
     
     # Total captured 10, max size 5. Indices in buffer: [5, 6, 7, 8, 9]
     # start = 7 (absolute)
-    frames = buf.get_frames(start=7, count=2, interval=1)
+    frames = buf.get_frames(start_frame_index=7, frame_count=2, frame_interval=1)
     assert len(frames) == 2
     assert frames[0]["data"] == "7"
     assert frames[1]["data"] == "8"
     
     # start = 4 (gone) -> should clamp to start of buffer (idx 5)
-    frames = buf.get_frames(start=4, count=1)
+    frames = buf.get_frames(start_frame_index=4, frame_count=1)
     assert frames[0]["data"] == "5"

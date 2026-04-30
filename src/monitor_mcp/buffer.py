@@ -65,38 +65,38 @@ class MonitorBuffer:
             })
             self._total_captured += 1
 
-    def get_frames(self, start: int = -1, count: int = 1, interval: int = 1) -> List[dict]:
+    def get_frames(self, start_frame_index: int = -1, frame_count: int = 1, frame_interval: int = 1) -> List[dict]:
         """
         Retrieve frames based on indexing logic.
-        start: Start index (negative for relative to end)
-        count: Number of frames to retrieve
-        interval: Step/Stride (negative to go backwards)
+        start_frame_index: Start index (negative for relative to the end)
+        frame_count: Number of frames to retrieve
+        frame_interval: Step/Stride (negative to go backwards)
         """
         with self._lock:
             if not self._buffer:
                 return []
 
-            available_count = len(self._buffer)
+            available_frame_count = len(self._buffer)
             
             # Resolve start index
-            if start < 0:
-                start_idx = available_count + start
+            if start_frame_index < 0:
+                resolved_start_idx = available_frame_count + start_frame_index
             else:
                 # Absolute index search - find the frame with the requested index
                 first_index = self._buffer[0]["index"]
-                start_idx = start - first_index
+                resolved_start_idx = start_frame_index - first_index
             
-            # Clamp start_idx
-            if start_idx < 0:
-                start_idx = 0
-            if start_idx >= available_count:
-                start_idx = available_count - 1
+            # Clamp resolved_start_idx
+            if resolved_start_idx < 0:
+                resolved_start_idx = 0
+            if resolved_start_idx >= available_frame_count:
+                resolved_start_idx = available_frame_count - 1
 
             result = []
-            current_idx = start_idx
+            current_idx = resolved_start_idx
             
-            for _ in range(count):
-                if 0 <= current_idx < available_count:
+            for _ in range(frame_count):
+                if 0 <= current_idx < available_frame_count:
                     frame = self._buffer[current_idx].copy()
                     
                     # ON-DEMAND LOADING: If data is a path, load it now
@@ -107,11 +107,11 @@ class MonitorBuffer:
                         except Exception as e:
                             logger.error(f"Failed to load frame from disk: {e}")
                             # Skip this frame if it can't be loaded
-                            current_idx += interval
+                            current_idx += frame_interval
                             continue
 
                     result.append(frame)
-                    current_idx += interval
+                    current_idx += frame_interval
                 else:
                     break
             

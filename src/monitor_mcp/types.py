@@ -11,6 +11,7 @@ class MonitorConfig(BaseModel):
     save_to_disk: bool = Field(True, description="Whether to save every captured frame to the storage_path")
     reset_cache: bool = Field(True, description="Whether to clear the circular buffer when monitoring starts")
     draw_mouse: bool = Field(True, description="Whether to draw the mouse cursor on the captured frames")
+    ttl_minutes: int = Field(0, description="Auto-stop after X minutes. 0 means no limit.")
 
 class Frame(BaseModel):
     index: int

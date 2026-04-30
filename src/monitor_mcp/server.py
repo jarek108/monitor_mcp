@@ -21,7 +21,7 @@ class ObservationManager:
         
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.default_config = self._load_default_config()
         self._fps_frames = [] # timestamps for FPS calculation
         self._current_fps = 0.0
@@ -98,12 +98,19 @@ class ObservationManager:
             logger.error("Missing config or buffer, exiting loop.")
             return
 
-        interval = 1.0 / self.config.frequency
+        interval_seconds = 1.0 / self.config.frequency
         resize_tuple = tuple(self.config.max_resolution) if self.config.max_resolution else None
+        start_time = time.time()
+        ttl_seconds = self.config.ttl_minutes * 60 if self.config.ttl_minutes > 0 else None
         
         while not self._stop_event.is_set():
             loop_start = time.time()
             
+            # Check TTL
+            if ttl_seconds and (loop_start - start_time) > ttl_seconds:
+                logger.info(f"TTL limit reached ({self.config.ttl_minutes} min). Stopping observation loop.")
+                break
+
             try:
                 img = self.engine.capture(
                     screen_index=self.config.screen,
@@ -140,7 +147,7 @@ class ObservationManager:
             
             # Precise sleep to maintain frequency
             elapsed = time.time() - loop_start
-            sleep_time = max(0, interval - elapsed)
+            sleep_time = max(0, interval_seconds - elapsed)
             time.sleep(sleep_time)
         logger.info("Observation loop stopped.")
 
@@ -177,7 +184,7 @@ class SimulationManager:
         self.buffer = MonitorBuffer(max_size=3600)
         self.feeder = None
         self.analyzer = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.current_session_id = None
         self.current_config = None
 
@@ -187,7 +194,8 @@ class SimulationManager:
         running_analyzer = bool(self.analyzer and self.analyzer._thread and self.analyzer._thread.is_alive())
         return running_feeder or running_analyzer
 
-    def start(self, folder_path, model, prompt, delay, count, interval, offset):
+    def start(self, folder_path, model, prompt, delay_in_seconds, frame_count, frame_interval, frame_offset, ttl_minutes: int = 0):
+        logger.info(f"SimulationManager.start called for {folder_path}")
         with self._lock:
             self.stop()
             self.buffer.clear()
@@ -196,17 +204,26 @@ class SimulationManager:
                 "folder": folder_path,
                 "model": model,
                 "prompt": prompt,
-                "delay": delay,
-                "count": count,
-                "interval": interval,
-                "offset": offset
+                "delay_in_seconds": delay_in_seconds,
+                "frame_count": frame_count,
+                "frame_interval": frame_interval,
+                "frame_offset": frame_offset,
+                "ttl_minutes": ttl_minutes
             }
             
             # Simulation results go into a subfolder of the test folder (or a fixed path)
             # Let's use the monitoring storage path if available, or just the project root
-            storage_root = Path(manager.default_config.storage_path)
-            session_path = storage_root / f"sim_{self.current_session_id}"
-            session_path.mkdir(parents=True, exist_ok=True)
+            try:
+                storage_root = Path(manager.default_config.storage_path).absolute()
+                logger.info(f"DEBUG: Storage root is {storage_root}")
+                session_path = storage_root / f"sim_{self.current_session_id}"
+                logger.info(f"DEBUG: Creating session path: {session_path}")
+                session_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.error(f"DEBUG Error creating session path: {e}")
+                # Fallback to local
+                session_path = Path(f"sim_{self.current_session_id}")
+                session_path.mkdir(exist_ok=True)
 
             # Save run_config.json for simulation
             config_file = session_path / "run_config.json"
@@ -216,9 +233,9 @@ class SimulationManager:
             self.feeder = FolderFeeder(folder_path, self.buffer)
             self.analyzer = AIAnalyzer(self.buffer, log_dir=str(session_path))
             
-            self.feeder.start()
-            self.analyzer.start(model, prompt, delay, count, interval, offset, session_id=self.current_session_id)
-            logger.info(f"Simulation started (Session: {self.current_session_id}, Dir: {session_path}).")
+            self.feeder.start(ttl_minutes=ttl_minutes)
+            self.analyzer.start(model, prompt, delay_in_seconds, frame_count, frame_interval, frame_offset, session_id=self.current_session_id, ttl_minutes=ttl_minutes, feeder=self.feeder)
+            logger.info(f"Simulation started (Session: {self.current_session_id}, Dir: {session_path}, TTL: {ttl_minutes}m).")
 
     def stop(self):
         with self._lock:
@@ -244,7 +261,8 @@ def start_monitoring(
     storage_path: Optional[str] = None,
     save_to_disk: Optional[bool] = None,
     reset_cache: Optional[bool] = None,
-    draw_mouse: Optional[bool] = None
+    draw_mouse: Optional[bool] = None,
+    ttl_minutes: Optional[int] = None
 ) -> str:
     """
     Start monitoring the screen.
@@ -256,6 +274,7 @@ def start_monitoring(
     :param save_to_disk: Whether to save every frame to disk
     :param reset_cache: Whether to clear the buffer on start
     :param draw_mouse: Whether to draw the mouse cursor on frames
+    :param ttl_minutes: Auto-stop after X minutes. 0 means no limit.
     """
     # Use defaults from config.json if not provided
     defaults = manager.default_config
@@ -268,7 +287,8 @@ def start_monitoring(
         storage_path=storage_path if storage_path is not None else defaults.storage_path,
         save_to_disk=save_to_disk if save_to_disk is not None else defaults.save_to_disk,
         reset_cache=reset_cache if reset_cache is not None else defaults.reset_cache,
-        draw_mouse=draw_mouse if draw_mouse is not None else defaults.draw_mouse
+        draw_mouse=draw_mouse if draw_mouse is not None else defaults.draw_mouse,
+        ttl_minutes=ttl_minutes if ttl_minutes is not None else defaults.ttl_minutes
     )
     manager.start(config)
     return f"Monitoring started: {config}"
@@ -281,20 +301,20 @@ def stop_monitoring() -> str:
 
 @mcp.tool()
 def get_imgs(
-    start: int = -1,
-    count: int = 1,
-    interval: int = 1
+    start_frame_index: int = -1,
+    frame_count: int = 1,
+    frame_interval: int = 1
 ) -> List[Frame]:
     """
     Retrieve images from the buffer.
-    :param start: Start index (negative for relative to end)
-    :param count: How many images to get
-    :param interval: Step between images (negative to go backwards)
+    :param start_frame_index: Start index (negative for relative to the end)
+    :param frame_count: How many images to get
+    :param frame_interval: Step between images (negative to go backwards)
     """
     if not manager.buffer:
         return []
         
-    raw_frames = manager.buffer.get_frames(start=start, count=count, interval=interval)
+    raw_frames = manager.buffer.get_frames(start_frame_index=start_frame_index, frame_count=frame_count, frame_interval=frame_interval)
     processed_frames = []
     
     for f in raw_frames:
