@@ -1,6 +1,6 @@
 # monitor_mcp 🖥️
 
-`monitor_mcp` is a Model Context Protocol (MCP) server that empowers LLMs to observe and monitor screen contents in real-time, and simulate visual environments via an AI Sandbox. It provides a controlled observation loop with a thread-safe circular buffer, allowing for highly efficient frame capture and retrieval without exhausting system memory.
+`monitor_mcp` is a Model Context Protocol (MCP) server that empowers LLMs to observe and monitor screen contents in real-time, and simulate visual environments via an AI Sandbox. It provides a controlled observation loop with a thread-safe circular buffer, allowing for highly efficient frame capture and retrieval without exhausting system memory...
 
 ---
 
